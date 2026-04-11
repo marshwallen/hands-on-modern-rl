@@ -19,6 +19,7 @@
 Loss 依然会正常下降！因为模型只是在无脑地拟合数据中给定的偏好关系。这也导致了微调后的模型会迅速“学坏”，变成一个刻薄的助手。
 
 这引出了后训练（Post-Training）时代的一个核心法则：**对齐的效果高度依赖数据质量，garbage in, garbage out。**
+
 </details>
 
 ### **Reward Margin（奖励边界）**
@@ -32,10 +33,12 @@ Loss 依然会正常下降！因为模型只是在无脑地拟合数据中给定
 <summary><strong>问题二：如果我把 <code>beta</code> 参数从 0.1 改成 1.0，Reward Margin 会怎样变化？</strong></summary>
 
 在 DPO 中，`beta` 参数控制着对参考模型（Reference Model）偏离程度的惩罚。
+
 - 如果 `beta` 很大（如 1.0），惩罚极强，模型几乎不敢改变自己原来的输出分布。此时 Reward Margin 会非常小，甚至几乎不增长。
 - 如果 `beta` 很小（如 0.01），模型会为了拉大 Margin 不择手段，甚至输出一些人类看不懂的乱码来迎合公式。
 
 > **动手实验**：试着回到 `2-train_dpo.py` 中，把 `beta` 修改为 0.01 和 0.5，重新运行训练并观察 TensorBoard 中的 Margin 曲线差异。
+
 </details>
 
 ### **Reward Accuracy（偏好准确率）**
@@ -45,6 +48,7 @@ Loss 依然会正常下降！因为模型只是在无脑地拟合数据中给定
 ## 本章小结
 
 在这一章中，你完成了以下任务：
+
 1. **运行了现代 RL 微调**：在 5 分钟内用 DPO 算法让一个 5 亿参数的大模型学会了“礼貌回复”。
 2. **理解了数据的作用**：认识到在偏好对齐中，高质量的 `(prompt, chosen, rejected)` 数据对是如何驱动模型演化的。
 3. **掌握了评估指标**：读懂了 Training Loss、Reward Margin 和 Accuracy 的含义及异常表现。

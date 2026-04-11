@@ -37,7 +37,13 @@
     "vue-eslint-parser": "^9.4.3"
   },
   "dependencies": {
+    "katex": "^0.16.45",
+    "markdown-it-footnote": "^4.0.0",
+    "markdown-it-katex": "^2.0.3",
+    "markdown-it-mathjax3": "^5.2.0",
+    "mermaid": "^11.14.0",
     "vitepress": "^2.0.0-alpha.16",
+    "vitepress-plugin-mermaid": "^2.0.17",
     "vue": "^3.5.0"
   }
 }

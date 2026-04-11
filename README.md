@@ -3,10 +3,10 @@
   <p><strong>现代强化学习：从代码实现到数学本质</strong></p>
 
   <p>
-    <a href="https://github.com/walkinglabs/hands-on-modern-rl/stargazers"><img src="https://img.shields.io/github/stars/walkinglabs/hands-on-modern-rl?style=for-the-badge&logo=github&color=eab676" alt="Stars" /></a>
-    <a href="https://github.com/walkinglabs/hands-on-modern-rl/network/members"><img src="https://img.shields.io/github/forks/walkinglabs/hands-on-modern-rl?style=for-the-badge&logo=github&color=87a96b" alt="Forks" /></a>
-    <a href="https://github.com/walkinglabs/hands-on-modern-rl/issues"><img src="https://img.shields.io/github/issues/walkinglabs/hands-on-modern-rl?style=for-the-badge&logo=github&color=c780e8" alt="Issues" /></a>
-    <a href="https://github.com/walkinglabs/hands-on-modern-rl/pulls"><img src="https://img.shields.io/github/issues-pr/walkinglabs/hands-on-modern-rl?style=for-the-badge&logo=github&color=7ea9e1" alt="Pull Requests" /></a>
+    <a href="https://github.com/walkinglabs/hands-on-modern-rl/stargazers"><img src="https://img.shields.io/badge/Stars-0-eab676?style=for-the-badge&logo=github" alt="Stars" /></a>
+    <a href="https://github.com/walkinglabs/hands-on-modern-rl/network/members"><img src="https://img.shields.io/badge/Forks-0-87a96b?style=for-the-badge&logo=github" alt="Forks" /></a>
+    <a href="https://github.com/walkinglabs/hands-on-modern-rl/issues"><img src="https://img.shields.io/badge/Issues-0-c780e8?style=for-the-badge&logo=github" alt="Issues" /></a>
+    <a href="https://github.com/walkinglabs/hands-on-modern-rl/pulls"><img src="https://img.shields.io/badge/Pull%20Requests-0-7ea9e1?style=for-the-badge&logo=github" alt="Pull Requests" /></a>
     <a href="https://github.com/walkinglabs/hands-on-modern-rl/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-CC_BY--NC--SA_4.0-e26d5c?style=for-the-badge" alt="CC BY-NC-SA 4.0 License" /></a>
   </p>
 
@@ -44,35 +44,46 @@
 
 ## 课程大纲
 
-### 核心章节
+### Part 1: 快速入门
 
-| 章节           | 课题                                                                              | 核心内容                                                                                                                                                               |
-| :------------- | :-------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Chapter 01** | [经典强化学习引论：求解 CartPole](docs/chapter01_cartpole/index.md)               | 运行第一个 CartPole 训练脚本，观察 reward 曲线从低到高的变化过程；在实验中理解状态、动作、奖励、策略等基本要素的含义。                                                 |
-| **Chapter 02** | [现代强化学习引论：大语言模型与 DPO 对齐](docs/chapter02_dpo/index.md)            | 用 DPO 算法对 Qwen2.5-0.5B 进行偏好微调，直观体验后训练（post-training）的完整流程；理解预训练、SFT、RL 三阶段各自的定位与局限。                                       |
-| **Chapter 03** | [理论基石：马尔可夫决策过程与价值函数](docs/chapter03_mdp/index.md)               | 通过简化的猜硬币游戏引入 MDP 五元组的形式化定义；推导贝尔曼方程，理解状态价值函数 V(s) 与动作价值函数 Q(s, a) 的递归关系。                                             |
-| **Chapter 04** | [策略梯度：从 REINFORCE 到 Actor-Critic](docs/chapter04_policy_gradient/index.md) | 从摇骰子实验出发推导策略梯度定理；实现 REINFORCE 算法并观察其高方差问题；引入基线与优势函数，构建 Actor-Critic 架构。                                                  |
-| **Chapter 05** | [近端策略优化 (PPO)](docs/chapter05_ppo/index.md)                                 | 用 PPO 训练 LunarLander，分析策略崩溃、clip fraction 异常等训练现象；推导重要性采样、裁剪目标函数与 GAE（广义优势估计）的数学形式；建立 PPO 与 LLM 对齐的对应关系。    |
-| **Chapter 06** | [直接偏好优化 (DPO)](docs/chapter06_dpo/index.md)                                 | 分析 RLHF 中奖励模型的工程痛点（训练成本、奖励黑客）；推导 Bradley-Terry 偏好模型到 DPO 损失函数的等价变换；对比 DPO 与 PPO 的适用场景。                               |
-| **Chapter 07** | [群体相对策略优化 (GRPO)](docs/chapter07_grpo/index.md)                           | 在 GSM8K 数学推理任务上运行 GRPO 训练；理解其核心思路——用组内相对比较替代 Critic 网络的绝对价值估计，从而大幅降低显存开销；分析 DeepSeek-R1 中 GRPO 的多阶段训练流程。 |
-| **Chapter 08** | [算法选型指南](docs/chapter08_algorithm_guide/index.md)                           | 针对游戏控制、小模型对齐、推理增强、复杂偏好对齐等典型场景，给出算法选择的决策依据与理由。                                                                             |
-| **Chapter 09** | [基于价值的方法：DQN 与 Atari 环境](docs/chapter09_dqn_atari/index.md)            | 从 Q-Learning 的维度灾难出发，引入深度 Q 网络；解析经验回放与目标网络两大支柱机制；延伸至 Double DQN、Dueling DQN、Rainbow 等改进谱系。                                |
-| **Chapter 10** | [连续控制空间](docs/chapter10_continuous_control/index.md)                        | 在 HalfCheetah 等环境中对比高斯策略与确定性策略；实现 DDPG 与 TD3，分析目标平滑正则化的作用；介绍向量化环境与并行采样加速策略。                                        |
-| **Chapter 11** | [LLM 后训练工程实践](docs/chapter11_llm_rlhf/index.md)                            | 从头跑通 SFT → 奖励模型训练 → PPO 优化的 RLHF 三阶段流水线；讨论奖励函数设计（规则奖励 vs 模型奖励）、奖励黑客的识别与防范、KL 散度惩罚等工程实践。                    |
-| **Chapter 12** | [视觉-语言模型中的强化学习](docs/chapter12_vlm_rl/index.md)                       | 用 GRPO 训练 VLM 回答视觉问题，观察推理步骤从随机到有序的变化；讨论视觉 token 与文本 token 的奖励分配问题；介绍 VisPlay、VISTA-Gym 等代表性框架。                      |
-| **Chapter 13** | [智能体强化学习](docs/chapter13_agentic_rl/index.md)                              | 训练一个学会调用计算器工具的智能体；理解动作空间扩展（文本生成 + 工具调用）与多轮交互的 MDP 建模方式；分析工具调用率与准确率的同步演化。                               |
-| **Chapter 14** | [调试实践指南](docs/chapter14_common_pitfalls/index.md)                           | 逐一复现策略崩溃、奖励黑客、显存溢出、训练不收敛四类常见故障；给出每种故障的现象描述、理论解释与修复验证方法。                                                         |
-| **Chapter 15** | [未来趋势](docs/chapter15_future_trends/index.md)                                 | 讨论测试时计算扩展（inference-time search）、多模态与具身智能中的 RL 融合、以及开源社区的学习路径。                                                                    |
+| 章节           | 课题                                                                 | 核心内容                                                                                                                         |
+| :------------- | :------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- |
+| **Chapter 01** | [RL 初印象：求解 CartPole](docs/chapter01_cartpole/intro.md)         | 运行第一个 CartPole 训练脚本，观察 reward 曲线从低到高的变化过程；在实验中理解状态、动作、奖励、策略等基本要素的含义。           |
+| **Chapter 02** | [现代 RL 初体验：大语言模型与 DPO 对齐](docs/chapter02_dpo/intro.md) | 用 DPO 算法对 Qwen2.5-0.5B 进行偏好微调，直观体验后训练（post-training）的完整流程；理解预训练、SFT、RL 三阶段各自的定位与局限。 |
 
-### 附录材料
+### Part 2: 理论与方法
 
-| 附录           | 课题                                                       | 说明                                                                                                                               |
-| :------------- | :--------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
-| **Appendix A** | [数学预备知识](docs/appendix_math/index.md)                | 概率论、优化方法与信息论中的相关概念。                                                                                             |
-| **Appendix B** | [环境配置指南](docs/appendix_env_install/index.md)         | 依赖安装与环境搭建。                                                                                                               |
-| **Appendix C** | [论文阅读清单](docs/appendix_papers/index.md)              | 本课程涉及的经典论文与前沿文献。                                                                                                   |
-| **Appendix D** | [术语对照表](docs/appendix_terminology/index.md)           | 常见概念的中英文术语对照与简要释义。                                                                                               |
-| **Appendix E** | [强化学习游戏里程碑](docs/appendix_game_projects/index.md) | 30 个 RL 玩游戏的里程碑项目，涵盖棋盘博弈（AlphaGo）、Atari、MOBA（Dota 2, 王者荣耀）、FPS、多智能体等方向，附论文出处与关键贡献。 |
+| 章节           | 课题                                                               | 核心内容                                                                                                                          |
+| :------------- | :----------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
+| **Chapter 03** | [MDP 与大模型语境](docs/chapter03_mdp/intro.md)                    | 通过猜硬币游戏引入 MDP 形式化定义；推导贝尔曼方程，建立价值函数与 TD Error 的直觉；完成从表格方法到神经网络函数逼近的过渡。       |
+| **Chapter 04** | [DQN 与游戏控制](docs/chapter04_dqn/intro.md)                      | 从经典 Q-Learning 出发，引入深度 Q 网络；解析经验回放与目标网络两大支柱机制；延伸至 Double DQN、Dueling DQN、Rainbow 等改进谱系。 |
+| **Chapter 05** | [策略梯度与 Actor-Critic](docs/chapter05_policy_gradient/intro.md) | 从摇骰子实验出发推导策略梯度定理；实现 REINFORCE 算法并观察高方差问题；引入基线与优势函数，构建 Actor-Critic 架构。               |
+| **Chapter 06** | [PPO 与奖励模型](docs/chapter06_ppo/intro.md)                      | 深入剖析 PPO 的裁剪机制、GAE（广义优势估计）；理解 Reward Model 的训练方式；建立 PPO 与 LLM 对齐的对应关系。                      |
+
+### Part 3: LLM 时代
+
+| 章节           | 课题                                                               | 核心内容                                                                                                                                                  |
+| :------------- | :----------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Chapter 07** | [对齐方法族：DPO / KTO / SimPO](docs/chapter07_alignment/intro.md) | 推导 Bradley-Terry 偏好模型到 DPO 损失函数的等价变换；对比 DPO、KTO、SimPO、IPO 等离线对齐方法的原理与适用场景。                                          |
+| **Chapter 08** | [GRPO、DAPO 与 RLVR](docs/chapter08_grpo_rlvr/intro.md)            | 理解 GRPO 用组内相对比较替代 Critic 网络的核心思路；延伸至 DAPO、SAPO 等改进；探讨可验证奖励范式 RLVR（Reinforcement Learning from Verifiable Rewards）。 |
+
+### Part 4: 进阶与前沿
+
+| 章节           | 课题                                                                 | 核心内容                                                                                                                               |
+| :------------- | :------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- |
+| **Chapter 09** | [连续动作控制 (SAC/TD3)](docs/chapter09_continuous_control/intro.md) | 在 MuJoCo 环境中对比高斯策略与确定性策略；实现 DDPG、TD3、SAC 等连续控制算法；介绍向量化环境与并行采样加速策略。                       |
+| **Chapter 10** | [RLHF 完整流水线](docs/chapter10_rlhf/intro.md)                      | 全景展示 LLM 后训练的 RLHF 三阶段流水线（SFT → RM → PPO）；涵盖奖励函数设计、奖励黑客防范、训练稳定性、RLAIF 与 Self-Play 等前沿扩展。 |
+| **Chapter 11** | [VLM 强化学习](docs/chapter11_vlm_rl/intro.md)                       | 用 GRPO 训练 VLM 回答视觉问题；讨论视觉 token 与文本 token 的奖励分配问题；介绍 VisPlay、VISTA-Gym 等代表性框架。                      |
+| **Chapter 12** | [Agentic RL](docs/chapter12_agentic_rl/intro.md)                     | 从单轮 RL 扩展到多轮工具调用与环境交互；理解动作空间扩展与信用分配；分析工具调用训练、多轮 MDP 建模与基础设施挑战。                    |
+| **Chapter 13** | [未来趋势](docs/chapter13_future_trends/intro.md)                    | 测试时计算扩展（inference-time search）、多模态与具身智能中的 RL 融合、多智能体系统（MARL）、模型基 RL 等前沿方向。                    |
+
+### 附录
+
+| 附录           | 课题                                                           | 说明                                                                                               |
+| :------------- | :------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| **Appendix A** | [常见坑与解法](docs/appendix_common_pitfalls/intro.md)         | 策略崩溃、奖励黑客、显存溢出、训练不收敛四类常见故障的现象描述、理论解释与修复验证方法。           |
+| **Appendix B** | [工业级训练与评测](docs/appendix_industrial_training/intro.md) | 分布式训练架构（DeepSpeed、Megatron-LM、veRL、OpenRLHF）、评测体系（Benchmark 选择与自动化评测）。 |
+| **Appendix C** | [算法速查](docs/appendix_algorithm_guide/intro.md)             | 算法选型决策矩阵与速查表，按任务场景给出推荐算法与理由。                                           |
 
 ## 本地运行环境
 
