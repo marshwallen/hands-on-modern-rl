@@ -19,3 +19,7 @@ code/**/rm_results/
 code/**/ppo_results/
 code/**/preference_data.json
 code/**/geometry_dataset/
+.claude/*
+
+# Temporary scripts and files
+temp/
