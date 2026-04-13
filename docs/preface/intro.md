@@ -111,7 +111,7 @@ graph TD
     A -->|"奖励 r"| C
     B -->|"动作 a"| A
     C -->|"TD 误差 (打分)"| B
-    
+
     style A fill:#fff3e0,stroke:#f57c00,color:#000
     style B fill:#e3f2fd,stroke:#1976d2,color:#000
     style C fill:#e8f5e9,stroke:#388e3c,color:#000

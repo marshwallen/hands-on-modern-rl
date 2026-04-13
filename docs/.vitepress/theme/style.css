@@ -75,7 +75,11 @@
 
 .vp-doc h1,
 .vp-doc h2 {
-  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, "Noto Serif SC", "Songti SC", "Source Han Serif CN", serif;
+  font-family:
+    ui-serif, Georgia, Cambria, 'Times New Roman', Times, 'Noto Serif CJK SC',
+    'Noto Serif SC', 'Source Han Serif SC', 'Source Han Serif CN', 'Songti SC',
+    'STSong', 'STZhongsong', 'SimSun', serif;
+  font-weight: 700;
 }
 
 .vp-doc h2,
