@@ -2,7 +2,7 @@
 
 > **本章目标**：零基础运行第一个 RL 训练脚本，获得"AI 能自己学会一件事"的直接体验。不要求任何理论知识。
 
-> 📁 **本章代码**：[hello_rl.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/hello_rl.py) · [hello_rl_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/hello_rl_tensorboard.py) · [pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/pytorch_from_scratch.py) · [requirements.txt](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/requirements.txt)
+> 📁 **本章代码**：[1-ppo_cartpole.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/1-ppo_cartpole.py) · [2-ppo_cartpole_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/2-ppo_cartpole_tensorboard.py) · [3-pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/3-pytorch_from_scratch.py) · [requirements.txt](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/requirements.txt)
 
 ## 1.1 动手：运行 CartPole 训练
 
@@ -34,7 +34,7 @@ pip install "gymnasium[classic-control]" stable-baselines3
 
 ### **第二步：编写训练与演示代码**
 
-你可以直接运行配套代码：[hello_rl.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/hello_rl.py)（`pip install -r requirements.txt` 安装依赖后运行）
+你可以直接运行配套代码：[1-ppo_cartpole.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/1-ppo_cartpole.py)（`pip install -r requirements.txt` 安装依赖后运行）
 
 这段代码包含两部分：首先使用 PPO 算法训练智能体，然后渲染一个可视化窗口，让你亲眼见证它学到的"杂技"。
 
@@ -118,7 +118,7 @@ env.close()
 
 这里面信息量很大，但目前我们只需要关注一件事：**模型到底有没有在变好？**
 
-要回答这个问题，最直接的方式是把每一轮训练的"平均得分"画成曲线。SB3 内置了 TensorBoard 支持，完整代码见 [hello_rl_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/hello_rl_tensorboard.py)，你只需要把训练代码中的 `model.learn(...)` 那一行前面加上一个参数：
+要回答这个问题，最直接的方式是把每一轮训练的"平均得分"画成曲线。SB3 内置了 TensorBoard 支持，完整代码见 [2-ppo_cartpole_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/2-ppo_cartpole_tensorboard.py)，你只需要把训练代码中的 `model.learn(...)` 那一行前面加上一个参数：
 
 ```python
 model = PPO("MlpPolicy", env, verbose=1, tensorboard_log="./ppo_cartpole_tensorboard/")

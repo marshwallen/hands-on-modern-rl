@@ -1,6 +1,6 @@
 # 1.5 再看指标：读懂 RL 的训练成绩单
 
-> 📁 **本章代码**：[hello_rl.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/hello_rl.py) · [hello_rl_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/hello_rl_tensorboard.py) · [pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/pytorch_from_scratch.py) · [requirements.txt](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/requirements.txt)
+> 📁 **本章代码**：[1-ppo_cartpole.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/1-ppo_cartpole.py) · [2-ppo_cartpole_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/2-ppo_cartpole_tensorboard.py) · [3-pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/3-pytorch_from_scratch.py) · [requirements.txt](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/requirements.txt)
 
 在上一节中，我们理解了 RL 的四个核心要素（状态、动作、奖励、策略），也看到了 SB3 黑盒内部的三步循环。现在，让我们回到 1.2 节看到的那段训练日志，用新学到的概念重新审视每一个数字——这一次，你应该会觉得它们不再是一堆陌生术语，而是一张清晰的学习进度报告。
 
@@ -61,7 +61,7 @@
 
 但 entropy 并不是越低越好。如果训练初期 entropy 就迅速降到接近 0，说明策略过早地"锁死"在某个可能并不好的动作模式上——这叫做**过早收敛（Premature Convergence）**。就像一个学生只做了 3 道题就觉得自己学会了，后面再也不愿意尝试新方法。RL 算法通常会通过"熵正则化"（鼓励策略保持一定程度的随机性）来防止这种情况，我们在第 6 章讲 PPO 时会详细讨论。
 
-> **动手实验**：运行 [hello_rl_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/hello_rl_tensorboard.py)，在 TensorBoard 中同时勾选 `rollout/ep_rew_mean` 和 `train/entropy_loss`，亲眼看看这个"剪刀交叉"。
+> **动手实验**：运行 [2-ppo_cartpole_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/2-ppo_cartpole_tensorboard.py)，在 TensorBoard 中同时勾选 `rollout/ep_rew_mean` 和 `train/entropy_loss`，亲眼看看这个"剪刀交叉"。
 
 ### **Value Loss：Critic 的"考试分数"**
 
@@ -93,7 +93,7 @@
 - 学习率太小（比如 0.000001）：每步更新太温和，策略学得太慢——训练 10 万步都不见起色
 - SB3 的默认值 0.0003 是经过大量实验验证的"甜蜜点"，对 CartPole 这类简单任务非常适用
 
-> **动手实验**：打开 [pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/pytorch_from_scratch.py)，把学习率从 `3e-4` 改成 `3e-2`（增大 100 倍），重新运行。你会看到训练曲线剧烈震荡甚至崩溃——这就是学习率太大的后果。
+> **动手实验**：打开 [3-pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/3-pytorch_from_scratch.py)，把学习率从 `3e-4` 改成 `3e-2`（增大 100 倍），重新运行。你会看到训练曲线剧烈震荡甚至崩溃——这就是学习率太大的后果。
 
 ## 指标速查表
 

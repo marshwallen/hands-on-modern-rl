@@ -1,6 +1,6 @@
 # 1.3 理论初探：RL 核心要素
 
-> 📁 **本章代码**：[hello_rl.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/hello_rl.py) · [hello_rl_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/hello_rl_tensorboard.py) · [pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/pytorch_from_scratch.py) · [requirements.txt](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/requirements.txt)
+> 📁 **本章代码**：[1-ppo_cartpole.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/1-ppo_cartpole.py) · [2-ppo_cartpole_tensorboard.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/2-ppo_cartpole_tensorboard.py) · [3-pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/3-pytorch_from_scratch.py) · [requirements.txt](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/requirements.txt)
 
 现在你已经亲手跑通了一个 RL 训练流程，亲眼看到了智能体从"什么都不会"到"稳稳立住杆子"的全过程。接下来，我们要做一件在本书中反复出现的事情：**用理论框架重新解读刚才观察到的现象**。
 
@@ -225,7 +225,7 @@ optimizer.step()
 
 ### 1.4.4 把它们串起来
 
-现在我们已经认识了三个零件：策略网络、采样循环、策略更新。让我们把它们拼成一个完整的训练过程。完整可运行代码见 [pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/pytorch_from_scratch.py)，下面是核心骨架：
+现在我们已经认识了三个零件：策略网络、采样循环、策略更新。让我们把它们拼成一个完整的训练过程。完整可运行代码见 [3-pytorch_from_scratch.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/3-pytorch_from_scratch.py)，下面是核心骨架：
 
 ```mermaid
 flowchart LR

@@ -3,7 +3,7 @@
 在训练过程中记录指标，方便用 TensorBoard 观察训练曲线
 
 运行方式：
-    python hello_rl_tensorboard.py
+    python 2-ppo_cartpole_tensorboard.py
     # 然后在另一个终端运行：
     tensorboard --logdir ./ppo_cartpole_tensorboard/
 """

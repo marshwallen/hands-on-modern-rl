@@ -20,16 +20,16 @@ pip install -r chapter01_cartpole/requirements.txt
 
 ### Part 1: 极速入门
 
-| 章节                    | 目录                  | 代码文件                  | 说明                                             |
-| ----------------------- | --------------------- | ------------------------- | ------------------------------------------------ |
-| **Ch01** 传统 RL 初体验 | `chapter01_cartpole/` | `hello_rl.py`             | SB3 版 CartPole 训练与演示                       |
-|                         |                       | `hello_rl_tensorboard.py` | 带 TensorBoard 日志的训练版本                    |
-|                         |                       | `pytorch_from_scratch.py` | 纯 PyTorch REINFORCE 实现（黑盒拆解）            |
-|                         |                       | `requirements.txt`        | gymnasium, stable-baselines3, torch, tensorboard |
-| **Ch02** 现代 RL 初体验 | `chapter02_dpo/`      | `0-generate_data.py`      | 偏好数据生成脚本                                 |
-|                         |                       | `1-test_before.py`        | 微调前测试                                       |
-|                         |                       | `2-train_dpo.py`          | DPO 训练                                         |
-|                         |                       | `3-test_after.py`         | 微调后测试                                       |
+| 章节                    | 目录                  | 代码文件                        | 说明                                             |
+| ----------------------- | --------------------- | ------------------------------- | ------------------------------------------------ |
+| **Ch01** 传统 RL 初体验 | `chapter01_cartpole/` | `1-ppo_cartpole.py`             | SB3 版 CartPole 训练与演示                       |
+|                         |                       | `2-ppo_cartpole_tensorboard.py` | 带 TensorBoard 日志的训练版本                    |
+|                         |                       | `3-pytorch_from_scratch.py`     | 纯 PyTorch REINFORCE 实现（黑盒拆解）            |
+|                         |                       | `requirements.txt`              | gymnasium, stable-baselines3, torch, tensorboard |
+| **Ch02** 现代 RL 初体验 | `chapter02_dpo/`      | `0-generate_data.py`            | 偏好数据生成脚本                                 |
+|                         |                       | `1-test_before.py`              | 微调前测试                                       |
+|                         |                       | `2-train_dpo.py`                | DPO 训练                                         |
+|                         |                       | `3-test_after.py`               | 微调后测试                                       |
 
 ### Part 2: 理论与方法
 
