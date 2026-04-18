@@ -199,4 +199,4 @@ print(f"距离目标: {np.linalg.norm(next_obs['achieved_goal'] - next_obs['desi
 
 **参考文献**：
 
-[^1]: Andrychowicz, M. et al. (2018). Hindsight Experience Replay. _NeurIPS_.
+[^1]: Andrychowicz, M. et al. (2017). Hindsight Experience Replay. _NeurIPS_.
