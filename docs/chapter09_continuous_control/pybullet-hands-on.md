@@ -1,4 +1,4 @@
-# 动手：PyBullet 机器人仿真与连续控制
+# 11.1 动手：PyBullet 机器人仿真与连续控制
 
 前面的章节里，我们的智能体要么在玩游戏（CartPole、Atari、ViZDoom），要么在抽象的物理世界里奔跑（MuJoCo 的 HalfCheetah）。现在，我们要进入一个更贴近真实应用的世界——**机器人控制**。
 
