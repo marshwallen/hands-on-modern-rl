@@ -322,9 +322,34 @@ def tool_run_partial_test(task: dict, code: str, test_expr: str) -> str:
 
 ### 3.2 Agent Loop：模型与环境的多轮交互
 
+这是 Agentic RL 的核心区别。和单轮补全不同，Agent 会**调用工具、看到报错、修复代码、再次执行**。每一步都记录在完整的对话轨迹中——这条轨迹就是训练数据。
+
+```mermaid
+flowchart TD
+    S["System: Agent Prompt"] --> U1["User: 题目"]
+    U1 --> A1["Assistant: 代码 v1\n（模型生成）"]
+    A1 --> T1["Tool: 执行代码 v1"]
+    T1 --> U2["User: 执行结果\n（ERROR: ...)"]
+    U2 --> A2["Assistant: 代码 v2\n（模型修复）"]
+    A2 --> T2["Tool: 执行代码 v2"]
+    T2 --> U3["User: 执行结果\n（ALL TESTS PASSED)"]
+    U3 --> A3["Assistant: 最终代码\n（模型提交）"]
+
+    style A1 fill:#e3f2fd,stroke:#1976d2,color:#000
+    style A2 fill:#e3f2fd,stroke:#1976d2,color:#000
+    style A3 fill:#e3f2fd,stroke:#1976d2,color:#000
+    style T1 fill:#fff3e0,stroke:#f57c00,color:#000
+    style T2 fill:#fff3e0,stroke:#f57c00,color:#000
+    style U2 fill:#fce4ec,stroke:#c62828,color:#000
+    style U3 fill:#e8f5e9,stroke:#2e7d32,color:#000
+```
+
+训练时，**loss 只算在蓝色节点（模型生成的 assistant token）上**，橙色和红色节点（工具执行结果）的 token 被 mask 掉。
+
 ```python
 # ==========================================
 # 3.2 Agent Loop：真实模型 + 真实工具交互
+#     关键：返回完整的 multi-turn 对话轨迹
 # ==========================================
 
 AGENT_SYSTEM_PROMPT = """\
@@ -351,7 +376,9 @@ def run_agent_episode(
     """
     运行一次真实的 Agent 交互循环。
     模型生成代码 → 执行测试 → 看到报错 → 修复 → 再执行。
-    返回 {"completion": str, "passed": bool, "rounds": int, "log_probs": tensor}
+
+    ★ 关键：返回完整的 multi-turn 对话轨迹 conversation。
+    训练时用整条轨迹计算 log_prob，不是只用最终代码。
     """
     conversation = [
         {"role": "system", "content": AGENT_SYSTEM_PROMPT},
@@ -359,7 +386,6 @@ def run_agent_episode(
     ]
 
     current_code = ""
-    total_log_probs = 0.0
     rounds_used = 0
 
     for round_idx in range(max_rounds + 1):
@@ -377,26 +403,16 @@ def run_agent_episode(
                 do_sample=temperature > 0,
                 top_p=0.95,
                 pad_token_id=tokenizer.pad_token_id,
-                output_scores=True,
-                return_dict_in_generate=True,
             )
 
-        generated_ids = outputs.sequences[0][inputs["input_ids"].shape[1]:]
+        generated_ids = outputs[0][inputs["input_ids"].shape[1]:]
         response = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
 
-        # 估算 log_prob（用 scores 近似）
-        if outputs.scores and len(outputs.scores) > 0:
-            with torch.no_grad():
-                for t, score in enumerate(outputs.scores):
-                    if t < len(generated_ids):
-                        token_id = generated_ids[t]
-                        if token_id < score.shape[-1]:
-                            log_p = score[0, token_id].item()
-                            total_log_probs += log_p
-
+        # ★ 把 assistant 回复追加到对话轨迹
+        conversation.append({"role": "assistant", "content": response})
         rounds_used += 1
 
-        # 解析 <final> 标签
+        # 解析 <final> 标签——Agent 提交最终代码
         final_match = re.search(r'<final>(.*?)</final>', response, re.DOTALL)
         if final_match:
             current_code = final_match.group(1).strip()
@@ -409,21 +425,18 @@ def run_agent_episode(
             exec_result = tool_execute_code(task, current_code)
 
             if verbose:
-                print(f"  Round {round_idx+1}: {exec_result[:60]}")
+                print(f"  Round {round_idx+1}: {exec_result[:80]}")
 
+            # ★ 把工具执行结果作为 user 消息追加到轨迹
             if exec_result == "ALL TESTS PASSED":
-                # 成功了，直接结束
-                conversation.append({"role": "assistant", "content": response})
                 conversation.append({"role": "user",
                     "content": f"Execution result: {exec_result}\nAll tests passed! Output your final code with <final> tags."})
             else:
-                # 失败了，反馈错误让模型修复
-                conversation.append({"role": "assistant", "content": response})
                 conversation.append({"role": "user",
                     "content": f"Execution result:\n{exec_result}\n\nPlease fix the code and try again."})
             continue
 
-        # 解析 <test> 标签
+        # 解析 <test> 标签——部分测试
         test_match = re.search(r'<test>(.*?)</test>', response, re.DOTALL)
         if test_match:
             test_expr = test_match.group(1).strip()
@@ -432,12 +445,12 @@ def run_agent_episode(
             else:
                 test_result = "No code written yet."
 
-            conversation.append({"role": "assistant", "content": response})
+            # ★ 同样追加到轨迹
             conversation.append({"role": "user",
                 "content": f"Test result: {test_result}"})
             continue
 
-        # 没有工具调用——尝试直接提取代码
+        # 没有工具调用——直接提取代码
         current_code = response
         break
 
@@ -451,29 +464,169 @@ def run_agent_episode(
         "completion": current_code,
         "passed": final_eval["passed"],
         "rounds": rounds_used,
-        "log_prob": total_log_probs,
         "error": final_eval.get("error"),
+        # ★ 完整的多轮对话轨迹——Agentic RL 训练的核心数据
+        "conversation": conversation,
     }
 ```
 
-### 3.3 验证 Agent Loop 是否工作
+### 3.3 从对话轨迹构建训练数据——token 级 mask
 
-在训练之前，先用几道题测试 Agent Loop 是否正常工作。
+上面的 `run_agent_episode` 返回了完整的 `conversation`——包含 system prompt、用户题目、模型的代码尝试、工具执行结果、错误修复……这一整条轨迹就是 Agentic RL 的训练数据。
+
+但训练时有一个关键约束：**loss 只应该算在模型生成的 token 上（assistant 角色），工具执行结果的 token（user 角色）要被 mask 掉。** 如果不 mask，模型会被训练去"生成工具返回的报错信息"——这显然是错的。
 
 ```python
 # ==========================================
-# 3.3 快速验证 Agent Loop
+# 3.3 Tokenize 轨迹 + 构建 assistant-only mask
 # ==========================================
 
-print("Quick sanity check — Agent Loop on 3 problems:")
-print("-" * 50)
+def tokenize_trajectory_with_mask(conversation: list, max_length: int = 2048):
+    """
+    将完整的多轮对话轨迹 tokenize，并构建 labels：
+    - assistant 生成的 token → 保留原 token id（参与 loss 计算）
+    - system / user / 工具结果的 token → 设为 -100（被 mask，不参与 loss）
 
-for i in [0, 5, 10]:
-    task = problems[i]
-    result = run_agent_episode(task, temperature=0.3, verbose=True)
-    status = "PASS" if result["passed"] else f"FAIL ({result['error'][:30]})"
-    print(f"  {task['task_id']}: {status} (rounds: {result['rounds']})")
-print("-" * 50)
+    这是 Agentic RL 训练的关键数据预处理步骤。
+    """
+    # 先 tokenize 每一段，记录哪些是 assistant 生成的
+    segments = []       # [(token_ids, is_assistant), ...]
+    for msg in conversation:
+        # 构建这段消息的文本（需要包含角色标记）
+        is_assistant = (msg["role"] == "assistant")
+
+        # 用 chat_template 拼接每段消息
+        partial_conv = []
+        for prev_msg in conversation:
+            partial_conv.append(prev_msg)
+            if prev_msg is msg:
+                break
+
+        if is_assistant:
+            # assistant: tokenize 到这段消息结束（不含 generation_prompt）
+            text = tokenizer.apply_chat_template(
+                partial_conv, tokenize=False, add_generation_prompt=False
+            )
+        else:
+            # system/user: tokenize 这段消息 + 后面的 generation prompt
+            text = tokenizer.apply_chat_template(
+                partial_conv, tokenize=False, add_generation_prompt=True
+            )
+
+        tokens = tokenizer.encode(text, add_special_tokens=False)
+        segments.append((tokens, is_assistant))
+
+    # 拼接所有 segment，计算每个 token 的归属
+    all_tokens = []
+    token_is_assistant = []
+
+    prev_len = 0
+    for tokens, is_assistant in segments:
+        # 只取新增部分（避免重复计算前面消息的 token）
+        new_tokens = tokens[prev_len:] if len(tokens) > prev_len else []
+        all_tokens.extend(new_tokens)
+        token_is_assistant.extend([is_assistant] * len(new_tokens))
+        prev_len = len(tokens)
+
+    # 截断到 max_length
+    if len(all_tokens) > max_length:
+        all_tokens = all_tokens[:max_length]
+        token_is_assistant = token_is_assistant[:max_length]
+
+    # 构建 labels：assistant token 保留，其余 mask 为 -100
+    input_ids = torch.tensor([all_tokens], dtype=torch.long)
+    labels = torch.tensor([all_tokens], dtype=torch.long)
+    for i, is_assist in enumerate(token_is_assistant):
+        if not is_assist:
+            labels[0, i] = -100  # mask 掉非 assistant token
+
+    attention_mask = torch.ones_like(input_ids)
+
+    return {
+        "input_ids": input_ids,
+        "attention_mask": attention_mask,
+        "labels": labels,
+    }
+```
+
+```mermaid
+flowchart LR
+    subgraph "完整轨迹 tokens"
+        S["system\ntokens"] --> U1["user\n(题目) tokens"] --> A1["assistant\ntokens ✓"]
+        A1 --> U2["user\n(报错) tokens"] --> A2["assistant\ntokens ✓"]
+        A2 --> U3["user\n(PASS) tokens"] --> A3["assistant\ntokens ✓"]
+    end
+
+    subgraph "Labels (训练目标)"
+        LS["-100"] --> LU1["-100"] --> LA1["保留 ✓\n算 loss"]
+        LA1 --> LU2["-100"] --> LA2["保留 ✓\n算 loss"]
+        LA2 --> LU3["-100"] --> LA3["保留 ✓\n算 loss"]
+    end
+
+    style S fill:#90a4ae,stroke:#546e7a,color:#fff
+    style U1 fill:#90a4ae,stroke:#546e7a,color:#fff
+    style A1 fill:#1976d2,stroke:#0d47a1,color:#fff
+    style U2 fill:#90a4ae,stroke:#546e7a,color:#fff
+    style A2 fill:#1976d2,stroke:#0d47a1,color:#fff
+    style U3 fill:#90a4ae,stroke:#546e7a,color:#fff
+    style A3 fill:#1976d2,stroke:#0d47a1,color:#fff
+    style LS fill:#e0e0e0,stroke:#9e9e9e
+    style LU1 fill:#e0e0e0,stroke:#9e9e9e
+    style LA1 fill:#e8f5e9,stroke:#2e7d32
+    style LU2 fill:#e0e0e0,stroke:#9e9e9e
+    style LA2 fill:#e8f5e9,stroke:#2e7d32
+    style LU3 fill:#e0e0e0,stroke:#9e9e9e
+    style LA3 fill:#e8f5e9,stroke:#2e7d32
+```
+
+**只有蓝色（assistant）token 参与 loss 计算。** 灰色（system/user/tool result）token 被 mask 为 -100。这意味着模型学习的是"在给定上下文（包括工具执行结果）的情况下如何生成下一步动作"——这正是 Agentic RL 要学的策略。
+
+::: details 为什么不能简单地只训练最终输出？
+如果只用最终代码训练，模型只学到了"给一个题目，输出正确答案"——这和单轮 SFT 没有本质区别。
+
+Agentic RL 的核心价值是训练模型**整个交互过程**：
+- 学会在第一步写出合理的初始代码
+- 学会调用 `<execute>` 工具验证
+- 学会**阅读错误信息并定位 bug**
+- 学会生成正确的修复代码
+
+只有训练完整轨迹，模型才能学到这些多步策略。如果只训练最终输出，模型永远不会学到"怎么调试"——它只会学到"什么是正确答案"。这就是 SFT 和 Agentic RL 的本质区别。
+:::
+
+### 3.4 验证：轨迹构造是否正确
+
+在训练之前，先验证 Agent Loop 产出的轨迹是否包含完整的多轮对话。
+
+```python
+# ==========================================
+# 3.4 验证轨迹结构
+# ==========================================
+
+print("Sanity check — Agent trajectory structure:")
+print("-" * 60)
+
+task = problems[0]
+result = run_agent_episode(task, temperature=0.3, verbose=True)
+
+print(f"\nStatus: {'PASS' if result['passed'] else 'FAIL'}")
+print(f"Rounds: {result['rounds']}")
+print(f"\n完整对话轨迹 (conversation):")
+for i, msg in enumerate(result["conversation"]):
+    role = msg["role"]
+    content_preview = msg["content"][:80].replace("\n", " ")
+    print(f"  [{i}] {role:12s} | {content_preview}...")
+
+# 验证 tokenize + mask 是否正确
+enc = tokenize_trajectory_with_mask(result["conversation"])
+total_tokens = enc["input_ids"].shape[1]
+assistant_tokens = (enc["labels"] != -100).sum().item()
+masked_tokens = total_tokens - assistant_tokens
+
+print(f"\nToken 统计:")
+print(f"  总 token 数:     {total_tokens}")
+print(f"  assistant token: {assistant_tokens} ({assistant_tokens/total_tokens:.0%})")
+print(f"  masked token:    {masked_tokens} ({masked_tokens/total_tokens:.0%})")
+print("-" * 60)
 ```
 
 ## 第四步：GRPO 训练——真实的梯度更新
@@ -503,16 +656,18 @@ model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
 ```
 
-### 4.2 真实的 GRPO 训练循环
+### 4.2 真实的 GRPO 训练循环——在完整轨迹上训练
 
-这里是核心——每一轮都涉及：
-1. **真实模型推理**生成多条轨迹
+这里是核心。和单轮 RL 的关键区别：**训练数据是多轮对话轨迹（包含工具调用和执行结果），loss 只算在 assistant 生成的 token 上。**
+
+每一轮都涉及：
+1. **真实模型推理**生成多条完整的多轮轨迹（不只是最终代码）
 2. **真实代码执行**验证每条轨迹
-3. **真实梯度更新**用 REINFORCE + baseline 优化策略
+3. **真实梯度更新**用 GRPO + assistant-only mask 优化策略
 
 ```python
 # ==========================================
-# 4.2 GRPO 训练循环
+# 4.2 GRPO 训练循环（Agentic 多轮轨迹版本）
 # ==========================================
 from torch.optim import AdamW
 import torch.nn.functional as F
@@ -529,19 +684,6 @@ ref_model.eval()
 for p in ref_model.parameters():
     p.requires_grad = False
 
-def compute_log_prob(model, input_ids, attention_mask, labels):
-    """计算模型在给定序列上的 log probability"""
-    with torch.no_grad() if not model.training else torch.enable_grad():
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-    return -outputs.loss  # negative CE loss = log prob
-
-def tokenize_conversation(conversation):
-    """将对话 tokenize 成模型输入"""
-    text = tokenizer.apply_chat_template(
-        conversation, tokenize=False, add_generation_prompt=False
-    )
-    return tokenizer(text, return_tensors="pt", truncation=True, max_length=1024)
-
 # ---- 训练数据 ----
 # 选择 32 道题作为训练集（不同于评测集，避免数据泄露）
 TRAIN_IDS = list(range(64, 96))  # HumanEval #64-#95
@@ -550,16 +692,17 @@ train_tasks = list(problems.select(TRAIN_IDS))
 # ---- 训练 ----
 training_log = {
     "epoch": [], "mean_reward": [], "success_rate": [],
-    "avg_rounds": [], "loss": [], "kl": [],
+    "avg_rounds": [], "loss": [], "avg_traj_tokens": [],
 }
 
 print("=" * 70)
-print("GRPO Agentic RL Training")
+print("GRPO Agentic RL Training (Multi-Turn Trajectory)")
 print(f"  Model: {MODEL_NAME}")
 print(f"  Train tasks: {len(train_tasks)} (HumanEval #{TRAIN_IDS[0]}-#{TRAIN_IDS[-1]})")
 print(f"  Group size: {GROUP_SIZE}")
 print(f"  Max epochs: {MAX_EPOCHS}")
 print(f"  Learning rate: {LR}")
+print(f"  ★ Training on FULL multi-turn trajectories (not just final output)")
 print("=" * 70)
 
 for epoch in range(MAX_EPOCHS):
@@ -568,11 +711,12 @@ for epoch in range(MAX_EPOCHS):
     epoch_successes = 0
     epoch_losses = []
     epoch_rounds = []
+    epoch_traj_tokens = []
 
     random.shuffle(train_tasks)
 
     for task_idx, task in enumerate(train_tasks):
-        # ---- Phase 1: On-Policy Rollout (GROUP_SIZE 条轨迹) ----
+        # ---- Phase 1: On-Policy Rollout (GROUP_SIZE 条完整轨迹) ----
         trajectories = []
         for g in range(GROUP_SIZE):
             result = run_agent_episode(task, temperature=0.7, max_rounds=3)
@@ -589,24 +733,23 @@ for epoch in range(MAX_EPOCHS):
         std_r = rewards.std() + 1e-8
         advantages = (rewards - mean_r) / std_r
 
-        # ---- Phase 3: 策略梯度更新 ----
+        # ---- Phase 3: 在完整轨迹上做策略梯度更新 ----
         for traj, advantage in zip(trajectories, advantages):
             if not traj["completion"]:
                 continue  # 跳过空轨迹
 
-            # 构建 prompt tokens
-            messages = [
-                {"role": "system", "content": AGENT_SYSTEM_PROMPT},
-                {"role": "user", "content": f"Implement this function:\n\n{task['prompt']}"},
-                {"role": "assistant", "content": traj["completion"]},
-            ]
-            enc = tokenize_conversation(messages)
+            # ★ 关键：用完整的多轮对话轨迹 tokenize，不是只用最终代码
+            enc = tokenize_trajectory_with_mask(traj["conversation"], max_length=2048)
             input_ids = enc["input_ids"].to(device)
             attention_mask = enc["attention_mask"].to(device)
-            labels = input_ids.clone()
+            labels = enc["labels"].to(device)
 
-            # 计算 policy log prob
+            traj_tokens = (labels != -100).sum().item()
+            epoch_traj_tokens.append(traj_tokens)
+
+            # 计算 policy log prob（只在 assistant token 上）
             outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            # outputs.loss 已经自动忽略了 labels=-100 的 token
             policy_log_prob = -outputs.loss
 
             # 计算 reference log prob（KL 惩罚）
@@ -639,26 +782,30 @@ for epoch in range(MAX_EPOCHS):
             print(f"  Epoch {epoch+1}/{MAX_EPOCHS} | "
                   f"Task {task_idx+1}/{len(train_tasks)} | "
                   f"Running SR: {running_sr:.1%} | "
-                  f"Avg Reward: {np.mean(epoch_rewards[-GROUP_SIZE:]):.3f}")
+                  f"Avg Reward: {np.mean(epoch_rewards[-GROUP_SIZE:]):.3f} | "
+                  f"Avg Traj Tokens: {np.mean(epoch_traj_tokens[-GROUP_SIZE:]):.0f}")
 
     # Epoch 统计
     epoch_sr = epoch_successes / (len(train_tasks) * GROUP_SIZE)
     epoch_mean_r = np.mean(epoch_rewards)
     epoch_mean_loss = np.mean(epoch_losses) if epoch_losses else 0
     epoch_mean_rounds = np.mean(epoch_rounds)
+    epoch_mean_tokens = np.mean(epoch_traj_tokens)
 
     training_log["epoch"].append(epoch + 1)
     training_log["mean_reward"].append(epoch_mean_r)
     training_log["success_rate"].append(epoch_sr)
     training_log["avg_rounds"].append(epoch_mean_rounds)
     training_log["loss"].append(epoch_mean_loss)
+    training_log["avg_traj_tokens"].append(epoch_mean_tokens)
 
     print(f"\n{'='*60}")
     print(f"Epoch {epoch+1} Summary:")
-    print(f"  Success Rate: {epoch_sr:.1%}")
-    print(f"  Mean Reward:  {epoch_mean_r:.3f}")
-    print(f"  Mean Loss:    {epoch_mean_loss:.4f}")
-    print(f"  Avg Rounds:   {epoch_mean_rounds:.1f}")
+    print(f"  Success Rate:    {epoch_sr:.1%}")
+    print(f"  Mean Reward:     {epoch_mean_r:.3f}")
+    print(f"  Mean Loss:       {epoch_mean_loss:.4f}")
+    print(f"  Avg Rounds:      {epoch_mean_rounds:.1f}")
+    print(f"  Avg Traj Tokens: {epoch_mean_tokens:.0f} (assistant-only)")
     print(f"{'='*60}\n")
 ```
 
@@ -838,7 +985,7 @@ print("=" * 60)
 
 ## 第六步：On-Policy vs Off-Policy 对比实验
 
-为了验证 GRPO（On-Policy）的选择是否合理，我们跑一个 Off-Policy 的基线：**用训练前的模型生成轨迹，但用同样的 reward 信号训练**。
+为了验证 GRPO（On-Policy）的选择是否合理，我们跑一个 Off-Policy 的基线：**用训练前的模型生成完整轨迹（只生成一次），然后用这些冻结轨迹做 REINFORCE 训练。** 和 On-Policy 的关键区别是：Off-Policy 的轨迹数据在整个训练过程中不变。
 
 ```python
 # ==========================================
@@ -854,6 +1001,7 @@ model_off = AutoModelForCausalLM.from_pretrained(
 model_off.eval()
 
 # 用原始模型生成 Off-Policy 轨迹（只生成一次，不随训练更新）
+# ★ 同样使用完整的多轮对话轨迹
 print("Generating Off-Policy trajectories (frozen model)...")
 off_policy_trajectories = []
 
@@ -868,6 +1016,7 @@ for task in train_tasks[:8]:  # 取 8 道题
         })
 
 # 用这些冻结轨迹做 REINFORCE 训练（Off-Policy：数据不随训练更新）
+# ★ 区别在于：数据是固定的（训练开始时生成一次），不是每个 epoch 重新生成
 model_off.enable_input_require_grads()
 model_off_lora = get_peft_model(model_off, lora_config)
 optimizer_off = AdamW(filter(lambda p: p.requires_grad, model_off_lora.parameters()), lr=LR)
@@ -881,16 +1030,11 @@ for epoch in range(MAX_EPOCHS):
         if not traj["completion"]:
             continue
 
-        messages = [
-            {"role": "system", "content": AGENT_SYSTEM_PROMPT},
-            {"role": "user", "content": f"Implement this function:\n\n{task['prompt']}"},
-            {"role": "assistant", "content": traj["completion"]},
-        ]
-        text = tokenizer.apply_chat_template(messages, tokenize=False)
-        enc = tokenizer(text, return_tensors="pt", truncation=True, max_length=1024)
+        # ★ 用完整的多轮轨迹 tokenize + mask（和 On-Policy 一样）
+        enc = tokenize_trajectory_with_mask(traj["conversation"], max_length=2048)
         input_ids = enc["input_ids"].to(device)
         attention_mask = enc["attention_mask"].to(device)
-        labels = input_ids.clone()
+        labels = enc["labels"].to(device)
 
         outputs = model_off_lora(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         loss = -(-outputs.loss) * reward  # REINFORCE: -log_prob * reward
@@ -988,19 +1132,22 @@ python -m verl.trainer.main_ppo \
 | ---- | -------- | -------- |
 | 基线评测 | temperature=0 greedy decoding | 真实 pass@1（通常 ~36-42%） |
 | Agent Loop | 真实模型推理 + 真实代码执行 + 多轮修复 | 每轮都有真实的 Python 执行结果 |
-| GRPO 训练 | On-Policy rollout + 组内比较 + 梯度更新 | LoRA 参数真的在变 |
+| 轨迹构造 | 完整多轮对话 + assistant-only token mask | system/user token 被 mask 为 -100 |
+| GRPO 训练 | On-Policy rollout + 完整轨迹 + 组内比较 + 梯度更新 | LoRA 参数在完整轨迹上更新 |
 | Benchmark | 同题、同协议重新评测 | pass@1 的变化 = 真实的训练效果 |
-| Off-Policy 对比 | 冻结数据训练 | 验证 On-Policy 的必要性 |
+| Off-Policy 对比 | 冻结轨迹训练（数据不随训练更新） | 验证 On-Policy 的必要性 |
 
 **核心收获**：
 
-1. **Benchmark 是唯一的裁判。** 无论是训练 reward 还是 epoch 成功率，都不能替代独立的 benchmark 评测。只有"训练后模型在未见过的题目上的 pass@1"才能证明训练真的有效。
+1. **训练完整轨迹，不只是最终输出。** 这是 Agentic RL 和单轮 RL 的本质区别。如果只用最终代码训练，模型只学会了"什么是正确答案"——和 SFT 没有区别。只有训练完整的多轮交互轨迹（工具调用 → 执行结果 → 错误修复），模型才能学到"如何调试"、"何时调用工具"、"如何阅读报错并修复"。
 
-2. **On-Policy GRPO > Off-Policy 冻结数据。** 因为 Agentic RL 中模型行为变化快——训练早期的"修复策略"和训练后期的截然不同。On-Policy 保证训练数据始终匹配当前策略。
+2. **Token 级 mask 保证训练信号正确。** 工具执行结果（报错信息、测试输出）是环境返回的，不是模型生成的。如果把这些 token 也放进 loss，模型会被训练去"生成报错信息"——这显然是错的。`labels` 中把这些 token 设为 `-100`，确保 loss 只算在 assistant 生成的 token 上。
 
-3. **效率惩罚塑造行为。** `EFFICIENCY_PENALTY = 0.02` 让模型不只追求"修好"，还追求"少轮数修好"。这在不降低 pass@1 的前提下减少了推理成本。
+3. **Benchmark 是唯一的裁判。** 无论是训练 reward 还是 epoch 成功率，都不能替代独立的 benchmark 评测。只有"训练后模型在未见过的题目上的 pass@1"才能证明训练真的有效。
 
-4. **小模型 + RL 可以显著提升。** 1.5B 模型通过 3 个 epoch 的 GRPO 训练，在 HumanEval 上通常能提升 5-15 个百分点的 pass@1。这和 rStar2-Agent 的发现一致（12.3 节）：RL 的数据效率在大模型上非常高。
+4. **On-Policy GRPO > Off-Policy 冻结数据。** 因为 Agentic RL 中模型行为变化快——训练早期的"修复策略"和训练后期的截然不同。On-Policy 保证训练数据始终匹配当前策略。
+
+5. **效率惩罚塑造行为。** `EFFICIENCY_PENALTY = 0.02` 让模型不只追求"修好"，还追求"少轮数修好"。这在不降低 pass@1 的前提下减少了推理成本。
 
 <details>
 <summary>如果没有 GPU 怎么办？</summary>
