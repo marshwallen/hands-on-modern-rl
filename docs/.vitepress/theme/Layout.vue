@@ -4,6 +4,7 @@ import { useData, useRoute } from 'vitepress'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ReadingProgress from './components/ReadingProgress.vue'
 import TextType from './components/TextType.vue'
+import mediumZoom from 'medium-zoom'
 
 const { frontmatter } = useData()
 const route = useRoute()
@@ -47,6 +48,7 @@ let sidebarResizeLeft = 0
 let outlineObserver = null
 let sidebarObserver = null
 let navigationSyncTimer = null
+let zoom = null
 
 const homeTaglineTyping = {
   typingSpeed: 42,
@@ -278,6 +280,15 @@ function cleanupNavigationSync() {
   }
 }
 
+function initMediumZoom() {
+  if (typeof document === 'undefined') return
+  if (zoom) zoom.detach()
+  zoom = mediumZoom('.main img', {
+    background: 'var(--vp-c-bg)',
+    margin: 24,
+  })
+}
+
 function initNavigationSync() {
   cleanupNavigationSync()
 
@@ -362,6 +373,7 @@ onMounted(() => {
   window.addEventListener('keydown', handleWindowKeydown)
   initNavigationSync()
   updateSidebarEdgePosition()
+  initMediumZoom()
 })
 
 onBeforeUnmount(() => {
@@ -400,6 +412,7 @@ watch(
   async () => {
     await nextTick()
     initNavigationSync()
+    initMediumZoom()
     window.requestAnimationFrame(updateSidebarEdgePosition)
   }
 )
@@ -907,5 +920,22 @@ watch(
     right: -6px;
     width: min(280px, calc(100vw - 24px));
   }
+}
+
+.medium-zoom-overlay {
+  z-index: 999;
+}
+
+.medium-zoom-image--opened {
+  z-index: 1000;
+}
+
+.main img {
+  cursor: zoom-in;
+  transition: transform 0.2s ease;
+}
+
+.main img:hover {
+  transform: scale(1.01);
 }
 </style>
