@@ -130,7 +130,7 @@ $$\beta \ln \frac{\pi_\theta(y_w | x)}{\pi_{ref}(y_w | x)} = \beta \ln \pi_\thet
 
 在第 2 章中，我们完成了以下内容：
 
-1. **运行了现代 RL 微调**：用 DPO 算法对一个 5 亿参数的大模型进行了偏好对齐，在几分钟内完成了从"毒舌"到"礼貌"的行为调整。
+1. **运行了现代 RL 微调**：用 DPO 算法对一个 5 亿参数的大模型进行了偏好对齐，在几分钟内让模型学会了在用户观点有误时礼貌地反驳，而不是盲目附和。
 2. **梳理了 Post-Training 流水线**：理解了 Pre-training → SFT → RL 三阶段的递进关系，以及 DPO 在其中的位置。
 3. **推导了 DPO 损失函数**：从 RLHF 的奖励模型出发，理解了 DPO 如何通过概率比值跳过奖励模型训练，将偏好优化转化为对比损失函数。
 4. **掌握了评估指标**：读懂了 Training Loss、Reward Margin、Reward Accuracy、Chosen/Rejected Reward 的数学定义和判读方法。
