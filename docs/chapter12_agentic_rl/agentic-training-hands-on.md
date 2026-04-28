@@ -46,12 +46,12 @@ flowchart TD
 
 多工具（我们的实验）：模型要在**搜索文档、执行代码、跑测试**之间做选择。这才叫 agentic——核心能力是**工具选择策略**。
 
-| 能力 | 单工具 | 多工具（本实验） |
-|------|--------|---------------|
-| 写代码 | 有 | 有 |
-| 看报错修代码 | 有 | 有 |
-| 搜索不熟悉的 API 文档 | **无** | **有** |
-| 跑测试套件看哪些挂了 | **无** | **有** |
+| 能力                       | 单工具 | 多工具（本实验） |
+| -------------------------- | ------ | ---------------- |
+| 写代码                     | 有     | 有               |
+| 看报错修代码               | 有     | 有               |
+| 搜索不熟悉的 API 文档      | **无** | **有**           |
+| 跑测试套件看哪些挂了       | **无** | **有**           |
 | 学会**什么时候用什么工具** | 不需要 | **核心学习目标** |
 
 ## 第零步：环境准备
@@ -306,7 +306,7 @@ print(f"Evaluation data: {len(eval_data)} BigCodeBench-Hard problems")
 
 ## 第二步：Agent Prompt 和工具调用解析
 
-```python
+````python
 # ==========================================
 # 2. Agent System Prompt：告诉模型有 3 个工具可用
 # ==========================================
@@ -339,8 +339,9 @@ SEARCH_PATTERN = re.compile(r'<search>(.*?)</search>', re.DOTALL)
 CODE_PATTERN = re.compile(r'```(?:python|py)?\n(.*?)\n```', re.DOTALL)
 SUBMIT_PATTERN = re.compile(r'```submit\n(.*?)\n```', re.DOTALL)
 PAD_ID = tokenizer.pad_token_id
+````
 
-
+```python
 def parse_tool_calls(text: str) -> list:
     """解析模型输出中的工具调用"""
     calls = []
@@ -796,14 +797,14 @@ print("Saved: multi_tool_agentic_rl.png")
 
 ## 参考：多工具 Agentic RL 的开源项目
 
-| 项目 | 工具 | 评测 Benchmark | 特点 |
-|------|------|---------------|------|
-| **MURPHY** | 代码执行 + 测试 | HumanEval, MBPP, BigCodeBench-Hard | Multi-turn GRPO，1.7B 模型 +8% |
-| **CodeGym** (ICLR'26) | 合成多工具环境 | OOD 泛化评测 | 自动生成 RL 环境 |
-| **VerlTool** | 代码/搜索/SQL/视觉/SWE | AIME, NQ, Spider, SWE-Verified | 统一多域框架 |
-| **Search-R1** | 搜索引擎 | NQ, HotpotQA, TriviaQA | 搜索 token mask |
-| **SimpleTIR** (ICLR'26) | 代码沙箱 | AIME 2024 | Void turn 过滤 |
-| **RLEF** (Meta) | 代码执行 + 测试 | CodeContests | 8B 模型竞赛编程 SOTA |
+| 项目                    | 工具                   | 评测 Benchmark                     | 特点                           |
+| ----------------------- | ---------------------- | ---------------------------------- | ------------------------------ |
+| **MURPHY**              | 代码执行 + 测试        | HumanEval, MBPP, BigCodeBench-Hard | Multi-turn GRPO，1.7B 模型 +8% |
+| **CodeGym** (ICLR'26)   | 合成多工具环境         | OOD 泛化评测                       | 自动生成 RL 环境               |
+| **VerlTool**            | 代码/搜索/SQL/视觉/SWE | AIME, NQ, Spider, SWE-Verified     | 统一多域框架                   |
+| **Search-R1**           | 搜索引擎               | NQ, HotpotQA, TriviaQA             | 搜索 token mask                |
+| **SimpleTIR** (ICLR'26) | 代码沙箱               | AIME 2024                          | Void turn 过滤                 |
+| **RLEF** (Meta)         | 代码执行 + 测试        | CodeContests                       | 8B 模型竞赛编程 SOTA           |
 
 ## 实验总结
 
