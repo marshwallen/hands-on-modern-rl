@@ -2,6 +2,58 @@
 
 > **本节目标**：从零开始搭建本课程所需的完整开发环境，涵盖 Python、PyTorch、RL 工具链和 LLM 训练框架。跟着步骤走完，你就能跑通全书所有实验。
 
+## 最小可运行环境（5 分钟上手）
+
+如果你迫不及待想动手，只需以下 4 步即可跑通课程前 6 章的所有实验。其余仿真环境和 LLM 框架可以后续按需安装。
+
+::: code-group
+
+```bash [conda（推荐）]
+conda create -n rl-course python=3.10 -y
+conda activate rl-course
+pip install torch torchvision
+pip install gymnasium stable-baselines3[extra]
+pip install numpy scipy matplotlib tqdm
+```
+
+```bash [venv]
+python3.10 -m venv rl-course
+source rl-course/bin/activate   # Windows: rl-course\Scripts\activate
+pip install torch torchvision
+pip install gymnasium stable-baselines3[extra]
+pip install numpy scipy matplotlib tqdm
+```
+
+:::
+
+装完后用这段代码验证——看到 `CartPole` 画面弹出来就说明一切就绪：
+
+```python
+import gymnasium as gym
+import torch
+
+print(f"PyTorch: {torch.__version__}")
+print(f"CUDA:    {torch.cuda.is_available()}")
+
+env = gym.make("CartPole-v1", render_mode="human")
+obs, info = env.reset()
+for _ in range(200):
+    action = env.action_space.sample()
+    obs, reward, terminated, truncated, info = env.step(action)
+    if terminated or truncated:
+        obs, info = env.reset()
+env.close()
+print("最小环境验证通过！")
+```
+
+::: details 没有 GPU 也能跑
+课程前半部分（CartPole、DQN 等）CPU 即可训练，不强制要求 GPU。后半部分 LLM 微调（Ch7-Ch10）建议至少 8 GB 显存，也可以用 [Google Colab](https://colab.research.google.com/) 免费 GPU 完成。
+:::
+
+---
+
+**以下为完整安装指南，按需查阅。**
+
 ## Python 环境准备
 
 推荐使用 **Python 3.10+**（3.10、3.11 或 3.12 均可）。我们建议用 conda 管理环境，方便切换 CUDA 版本。
