@@ -1,61 +1,361 @@
-# 7.2 PPO 数学推导——从策略梯度到裁剪代理目标
+# 7.2 PPO 数学推导：从 RL 目标到裁剪代理目标
 
-上一节我们用 SB3 的 PPO 训练了月球着陆器，看到了训练曲线和关键指标。但 PPO 的公式是怎么来的？为什么它比朴素策略梯度更稳定？这一节我们从头推导 PPO 的完整数学原理，把第 5 章的策略梯度、重要性采样、裁剪机制串成一条完整的链条。
+上一节我们用 SB3 的 PPO 训练了月球着陆器，看到了 reward、entropy、clip fraction 这些曲线。但如果只记住 PPO 的最后公式：
 
-推导路线图：
+$$
+L^{\text{CLIP}}(\theta)
+= \mathbb{E}_t\left[
+\min\left(
+r_t(\theta)\hat{A}_t,\;
+\text{clip}(r_t(\theta),1-\varepsilon,1+\varepsilon)\hat{A}_t
+\right)
+\right]
+$$
 
+很容易产生一种错觉：PPO 好像只是给策略比率套了一个 `clip`。这一节要做的事情更彻底一些：从最早的强化学习目标开始，一步步解释为什么会有折扣回报、为什么目标要写成期望、为什么会出现 $\log \pi_\theta(a_t|s_t)$、为什么要减去基线、为什么旧数据需要重要性采样、为什么 TRPO 先提出信任域，最后 PPO 又为什么把信任域简化成裁剪目标。
+
+一句话概括 PPO 的来龙去脉：
+
+> PPO 是一种策略梯度算法。它想用同一批 on-policy 数据更新多轮以提高样本效率，又不希望策略在多轮更新中偏离采样时的旧策略太远，所以用策略比率和裁剪目标给更新幅度加上软约束。
+
+推导路线图如下：
+
+```text
+强化学习问题 → 折扣累计回报 → 期望目标 J(θ)
+→ 策略梯度 → 基线与优势函数 → 旧数据复用
+→ 重要性采样代理目标 → TRPO 信任域 → PPO-Clip
+→ 策略损失 + 价值损失 + 熵奖金
 ```
-策略梯度 → 带基线的策略梯度 → 代理目标（Surrogate Objective）→ TRPO（KL 约束）→ PPO-Clip（裁剪）
+
+先把主要符号放在一张表里。后文每个公式都会再次解释这些字母，这张表可以当作索引。
+
+| 符号                         | 含义                                                   | 代码里的对应物                           |
+| ---------------------------- | ------------------------------------------------------ | ---------------------------------------- |
+| $s_t$                        | 第 $t$ 步的状态，例如 CartPole 的位置、速度等观测      | `state` / `obs`                          |
+| $a_t$                        | 第 $t$ 步采取的动作                                    | `action`                                 |
+| $r_t$                        | 执行动作后环境返回的即时奖励                           | `reward`                                 |
+| $\gamma$                     | 折扣因子，控制未来奖励的重要程度                       | `gamma`，常用 `0.99`                     |
+| $G_t$                        | 从第 $t$ 步开始的折扣累计回报                          | `returns`                                |
+| $\tau$                       | 一整条轨迹：状态、动作、奖励组成的序列                 | rollout / trajectory                     |
+| $\pi_\theta(a \mid s)$       | 参数为 $\theta$ 的策略，在状态 $s$ 选择动作 $a$ 的概率 | `action_probs`                           |
+| $\log \pi_\theta(a \mid s)$  | 动作概率的对数，用来稳定计算策略梯度                   | `log_prob` / `new_logprobs`              |
+| $J(\theta)$                  | 策略的总体目标：期望折扣累计回报                       | 训练时希望最大化的目标                   |
+| $V_\theta(s)$                | Critic 对状态 $s$ 未来回报的估计                       | `value` / `new_values`                   |
+| $A_t$ 或 $\hat{A}_t$         | 优势估计：这个动作比当前状态的平均水平好多少           | `advantages`                             |
+| $\pi_{\text{old}}(a \mid s)$ | 收集这批数据时的旧策略                                 | 存下来的 `old_logprobs`                  |
+| $r_t(\theta)$                | 新旧策略概率比值 $\pi_\theta / \pi_{\text{old}}$       | `ratio = exp(new_logprobs-old_logprobs)` |
+| $\varepsilon$                | PPO 裁剪范围，通常取 `0.1` 或 `0.2`                    | `clip_eps` / `clip_range`                |
+| $H[\pi_\theta]$              | 策略熵，衡量动作分布有多随机                           | `entropy`                                |
+
+## 第一步：把强化学习写成一个概率问题
+
+强化学习最基本的循环是：
+
+```text
+看到状态 s_t → 策略选择动作 a_t → 环境给出奖励 r_t 和下一个状态 s_{t+1}
 ```
 
-公式中出现的符号含义如下：
+这里的 $t$ 表示时间步。$s_t$ 是 agent 在第 $t$ 步看到的状态，$a_t$ 是它采取的动作，$r_t$ 是环境对这个动作的即时反馈。强化学习不是只看某一步奖励，而是关心一串决策共同造成的长期结果。
 
-| 符号                         | 含义                                     | 学术名称                  |
-| ---------------------------- | ---------------------------------------- | ------------------------- |
-| $\pi_\theta(a \mid s)$       | 策略网络在状态 $s$ 下选择动作 $a$ 的概率 | Policy / 策略             |
-| $\pi_{\text{old}}(a \mid s)$ | 上一次收集数据时的策略                   | Old Policy / 旧策略       |
-| $A_t$                        | 时刻 $t$ 的优势估计                      | Advantage / 优势函数      |
-| $r_t(\theta)$                | 新旧策略的概率比值                       | Policy Ratio / 策略比率   |
-| $\varepsilon$                | 裁剪范围，通常取 0.1 或 0.2              | Clip Range / 裁剪范围     |
-| $V_\theta(s)$                | Critic 对状态 $s$ 的价值估计             | Value Function / 价值函数 |
-| $H[\pi_\theta]$              | 策略的熵                                 | Entropy / 熵              |
+通常我们把环境写成一个马尔可夫决策过程：
 
-## 第一步：策略梯度回顾
+$$
+\mathcal{M} = (\mathcal{S}, \mathcal{A}, P, R, \gamma)
+$$
 
-第 5 章我们推导了策略梯度定理。策略 $\pi_\theta$ 的目标函数是期望累计奖励：
+每个字母的意思是：
 
-$$J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta} \left[ \sum_{t=0}^{\infty} \gamma^t r_t \right]$$
+- $\mathcal{S}$：状态空间，所有可能状态的集合。
+- $\mathcal{A}$：动作空间，所有可能动作的集合。
+- $P(s_{t+1}\mid s_t,a_t)$：状态转移概率。它表示在状态 $s_t$ 执行动作 $a_t$ 后，环境转移到 $s_{t+1}$ 的概率。
+- $R(s_t,a_t)$：奖励函数。它告诉我们这一步动作带来的即时收益。
+- $\gamma$：折扣因子。它决定未来奖励在今天看来有多重要。
 
-策略梯度定理告诉我们，目标函数对参数的梯度可以写成：
+策略是我们要训练的对象。写成公式就是：
 
-$$\nabla_\theta J(\theta) = \mathbb{E}_t \left[ \nabla_\theta \log \pi_\theta(a_t | s_t) \cdot \Psi_t \right]$$
+$$
+\pi_\theta(a_t \mid s_t)
+$$
 
-其中 $\Psi_t$ 可以是累计回报 $G_t$、基线校正后的优势 $A_t$、或 TD Error $\delta_t$。选择 $\Psi_t = A_t$ 就是最常用的形式：
-
-$$\nabla_\theta J(\theta) = \mathbb{E}_t \left[ \nabla_\theta \log \pi_\theta(a_t | s_t) \cdot A_t \right]$$
-
-这就是 Actor-Critic 架构中 Actor 的更新方向——Critic 提供 $A_t$，Actor 沿着梯度调整 $\theta$。
-
-回到 [ppo_from_scratch.py](../../code/chapter06_ppo/ppo_from_scratch.py) 中的代码，收集数据时模型记录了每个动作的 log 概率：
+这表示“参数为 $\theta$ 的策略网络，在状态 $s_t$ 下选择动作 $a_t$ 的概率”。在代码中，Actor 网络输出动作分布：
 
 ```python
-# 收集数据时：记录旧策略的 log 概率
+action_probs, value = model(state_tensor)
 dist = Categorical(action_probs)
 action = dist.sample()
-log_prob = dist.log_prob(action)   # → log π_old(a|s)
+log_prob = dist.log_prob(action)
 ```
 
-这里的 `log_prob` 就是公式中的 $\log \pi_{\text{old}}(a_t | s_t)$，它会在后续 PPO 更新中被反复使用。
+`action_probs` 就是 $\pi_\theta(\cdot \mid s_t)$，它是所有动作的概率分布；`action` 是从这个分布里采样出来的动作；`log_prob` 是 $\log \pi_\theta(a_t\mid s_t)$，后面算梯度和 PPO 比率都会用到它。
 
-**朴素策略梯度的致命问题**。这个梯度估计的方差很大。一次基于 mini-batch 的梯度更新可能导致策略发生大幅变化，而策略更新是不可逆的——一旦参数变了，之前收集的数据就不再适用。在 [ppo_from_scratch.py](../../code/chapter06_ppo/ppo_from_scratch.py) 的 `collect_trajectories` 函数中，模型用当前策略跑 2048 步来收集数据。如果一次梯度更新就让策略大幅偏离，那这 2048 步数据全部作废——这在样本效率上是不可接受的。
+如果从初始状态一路跑到结束，我们得到一条轨迹：
 
-要解决这个问题，核心矛盾在于：**我们想用同一批数据做多次更新（节省样本），但朴素策略梯度只能用一次**。为什么只能用一次？因为梯度公式中有一个隐含条件——数据必须来自当前策略 $\pi_\theta$。一旦 $\theta$ 更新了，旧数据对应的策略就不再是 $\pi_\theta$ 了。下一步的重要性采样将解开这个限制。
+$$
+\tau = (s_0,a_0,r_0,s_1,a_1,r_1,\ldots,s_T)
+$$
 
-## 第二步：重要性采样——让旧数据重新可用
+$\tau$ 读作 trajectory。它不是一个单点样本，而是一整段交互历史。给定策略 $\pi_\theta$ 后，这条轨迹出现的概率可以写成：
 
-朴素策略梯度是**在线**（on-policy）的——必须用当前策略 $\pi_\theta$ 收集数据。能不能用旧策略 $\pi_{\theta_{\text{old}}}$ 收集的数据来更新新策略？可以，靠**重要性采样**。
+$$
+p_\theta(\tau)
+= \rho_0(s_0)
+\prod_{t=0}^{T-1}
+\pi_\theta(a_t\mid s_t)
+P(s_{t+1}\mid s_t,a_t)
+$$
 
-### 2.1 重要性采样的恒等式
+这个公式看起来长，其实只是在说三件事：
+
+- $\rho_0(s_0)$：初始状态从哪里来。
+- $\pi_\theta(a_t\mid s_t)$：agent 在每个状态下怎么选动作。
+- $P(s_{t+1}\mid s_t,a_t)$：环境在动作之后怎么变化。
+
+非常关键的一点是：在这个乘积里，只有 $\pi_\theta(a_t\mid s_t)$ 含有我们能训练的参数 $\theta$。环境转移 $P$ 通常不知道、不可导、也不能被我们直接修改。策略梯度方法之所以只需要动作的 `log_prob`，根源就在这里。
+
+## 第二步：为什么目标是折扣累计回报
+
+如果只最大化即时奖励 $r_t$，agent 会变得短视。例如月球着陆器当前猛喷一下燃料也许能立刻改变姿态，但可能导致后面坠毁。强化学习真正要最大化的是从现在开始的一串未来奖励：
+
+$$
+G_t = r_t + \gamma r_{t+1} + \gamma^2 r_{t+2} + \cdots
+$$
+
+更紧凑地写：
+
+$$
+G_t = \sum_{k=0}^{T-t-1}\gamma^k r_{t+k}
+$$
+
+这里每个符号的意思是：
+
+- $G_t$：return，从第 $t$ 步开始往后看的累计回报。
+- $k$：从当前时刻往后的偏移量。$k=0$ 表示当前奖励 $r_t$，$k=1$ 表示下一步奖励 $r_{t+1}$。
+- $\gamma^k$：未来奖励的折扣权重。越远的奖励，乘的折扣次数越多。
+- $T$：轨迹长度。如果任务没有固定终点，也常写成无穷和 $\sum_{k=0}^{\infty}\gamma^k r_{t+k}$。
+
+为什么要有 $\gamma$？主要有三个原因。
+
+第一，$\gamma$ 表达“未来很重要，但通常没有当下确定”。$\gamma=0$ 时，agent 只看当前奖励；$\gamma$ 越接近 $1$，agent 越重视长期结果。CartPole、LunarLander 这类任务常用 $\gamma=0.99$。
+
+第二，在无限时间任务里，如果每一步都有正奖励，直接求和可能发散。只要 $0\leq\gamma<1$，折扣和就更容易保持有限。
+
+第三，折扣回报有一个非常适合实现的递推形式：
+
+$$
+G_t = r_t + \gamma G_{t+1}
+$$
+
+这句话的意思是：从现在开始的总回报，等于“现在的奖励”加上“下一步总回报打一个折扣”。代码里通常从后往前算：
+
+```python
+G = 0
+returns = []
+for reward in reversed(rewards):
+    G = reward + gamma * G
+    returns.insert(0, G)
+```
+
+这段代码里的 `G` 就是公式里的 $G_t$，`reward` 是 $r_t$，`gamma` 是 $\gamma$，`returns` 存下每一个时间步的折扣累计回报。
+
+于是，一个策略的目标函数可以写成：
+
+$$
+J(\theta)
+= \mathbb{E}_{\tau \sim p_\theta(\tau)}[G_0]
+= \mathbb{E}_{\tau \sim \pi_\theta}
+\left[
+\sum_{t=0}^{T-1}\gamma^t r_t
+\right]
+$$
+
+$J(\theta)$ 读作“参数 $\theta$ 的策略好不好”。$\mathbb{E}$ 表示期望，因为同一个策略跑很多次也可能得到不同轨迹。环境有随机性，策略采样动作也有随机性，所以我们最大化的不是某一次运行的奖励，而是平均意义上的长期回报。
+
+## 第三步：从目标函数到策略梯度
+
+现在问题变成：怎样调整 $\theta$，让 $J(\theta)$ 变大？
+
+先把目标写成对所有可能轨迹的求和：
+
+$$
+J(\theta)
+= \sum_{\tau} p_\theta(\tau)R(\tau)
+$$
+
+这里 $R(\tau)$ 表示整条轨迹的折扣累计回报。对 $\theta$ 求梯度：
+
+$$
+\nabla_\theta J(\theta)
+= \sum_{\tau} \nabla_\theta p_\theta(\tau)R(\tau)
+$$
+
+直接对轨迹概率 $p_\theta(\tau)$ 求导很难。策略梯度的关键技巧是这个恒等式：
+
+$$
+\nabla_\theta p_\theta(\tau)
+= p_\theta(\tau)\nabla_\theta \log p_\theta(\tau)
+$$
+
+它来自 $\nabla \log x = \frac{1}{x}\nabla x$。把它代回去：
+
+$$
+\nabla_\theta J(\theta)
+= \sum_{\tau} p_\theta(\tau)
+\nabla_\theta \log p_\theta(\tau)
+R(\tau)
+= \mathbb{E}_{\tau\sim p_\theta}
+\left[
+\nabla_\theta \log p_\theta(\tau)R(\tau)
+\right]
+$$
+
+再展开 $\log p_\theta(\tau)$：
+
+$$
+\log p_\theta(\tau)
+= \log \rho_0(s_0)
++ \sum_{t=0}^{T-1}\log \pi_\theta(a_t\mid s_t)
++ \sum_{t=0}^{T-1}\log P(s_{t+1}\mid s_t,a_t)
+$$
+
+对 $\theta$ 求导后，初始状态分布 $\rho_0$ 和环境转移 $P$ 都消失，因为它们不含 $\theta$：
+
+$$
+\nabla_\theta \log p_\theta(\tau)
+= \sum_{t=0}^{T-1}
+\nabla_\theta \log \pi_\theta(a_t\mid s_t)
+$$
+
+得到最经典的 REINFORCE 梯度：
+
+$$
+\nabla_\theta J(\theta)
+=
+\mathbb{E}_{\tau\sim\pi_\theta}
+\left[
+\sum_{t=0}^{T-1}
+\nabla_\theta \log \pi_\theta(a_t\mid s_t)G_t
+\right]
+$$
+
+为什么这里用 $G_t$ 而不是整条轨迹的 $G_0$？因为第 $t$ 步的动作不可能影响第 $t$ 步之前已经发生的奖励。用从当前时刻开始的回报 $G_t$，既符合因果关系，也能降低噪声。
+
+实现时，我们通常不手写这个梯度，而是写一个等价的 loss，让自动微分去算：
+
+```python
+policy_loss = -(log_probs * returns).mean()
+policy_loss.backward()
+optimizer.step()
+```
+
+为什么有负号？数学上我们想最大化 $\log \pi_\theta(a_t\mid s_t)G_t$；但 PyTorch 优化器默认最小化 loss，所以写成负号。如果 $G_t$ 很大，梯度下降会提高对应动作的 log probability；如果 $G_t$ 很小甚至为负，它会降低对应动作的概率。
+
+## 第四步：价值函数、基线与优势
+
+朴素 REINFORCE 能工作，但方差很大。原因是 $G_t$ 只是告诉我们“这次后面总共拿了多少奖励”，却没有告诉我们“这在当前状态下算不算好”。
+
+例如 LunarLander 某一步之后拿到 $G_t=80$。这听起来不错，但如果同一个状态下正常策略平均能拿 $120$，那这个动作其实低于平均水平。我们需要一个参照物，这个参照物就是状态价值函数：
+
+$$
+V^\pi(s_t)
+= \mathbb{E}_{\pi}[G_t \mid s_t]
+$$
+
+$V^\pi(s_t)$ 表示：如果现在处在状态 $s_t$，之后继续按照策略 $\pi$ 行动，平均能拿到多少回报。
+
+动作价值函数则多固定了一个动作：
+
+$$
+Q^\pi(s_t,a_t)
+= \mathbb{E}_{\pi}[G_t \mid s_t,a_t]
+$$
+
+$Q^\pi(s_t,a_t)$ 表示：在状态 $s_t$ 先执行动作 $a_t$，后面再按策略 $\pi$ 行动，平均能拿到多少回报。
+
+两者相减得到优势函数：
+
+$$
+A^\pi(s_t,a_t)
+= Q^\pi(s_t,a_t) - V^\pi(s_t)
+$$
+
+优势的意思非常朴素：这个动作比当前状态下的平均动作好多少。$A_t>0$，说明这个动作比平均好，应该提高概率；$A_t<0$，说明这个动作比平均差，应该降低概率；$A_t=0$，说明它差不多就是平均水平。
+
+实际代码里，我们不知道真实的 $V^\pi$ 和 $Q^\pi$，所以用 Critic 网络估计 $V_\theta(s_t)$，再用回报或 GAE 近似优势：
+
+$$
+\hat{A}_t \approx G_t - V_\theta(s_t)
+$$
+
+对应到代码就是：
+
+```python
+returns = advantages + values
+advantages = returns - values
+value_loss = F.mse_loss(new_values, mb_returns)
+```
+
+更准确地说，本章代码使用 GAE 来算 `advantages`，下一节会专门推导 GAE。这里先把它理解成“比 Critic 预期更好或更差的那部分”。
+
+为什么可以把 $G_t$ 换成 $A_t$？因为从策略梯度里减去一个只依赖状态的基线 $b(s_t)$，不会改变期望梯度：
+
+$$
+\mathbb{E}_{a_t\sim\pi_\theta}
+\left[
+\nabla_\theta\log\pi_\theta(a_t\mid s_t)b(s_t)
+\right]
+= b(s_t)\nabla_\theta
+\sum_{a_t}\pi_\theta(a_t\mid s_t)
+= b(s_t)\nabla_\theta 1
+= 0
+$$
+
+这段推导说明：减去基线不改变梯度方向的期望，只会降低方差。于是策略梯度可以写成更常用的 Actor-Critic 形式：
+
+$$
+\nabla_\theta J(\theta)
+= \mathbb{E}_t
+\left[
+\nabla_\theta \log \pi_\theta(a_t\mid s_t)\hat{A}_t
+\right]
+$$
+
+这就是 Actor 和 Critic 的分工：Critic 估计 $V_\theta(s_t)$，把“当前状态的平均水平”告诉 Actor；Actor 只根据优势 $\hat{A}_t$ 调整动作概率。
+
+## 第五步：朴素策略梯度为什么还不够
+
+到这里，我们已经有了一个看起来完整的算法：
+
+```text
+用当前策略采样一批轨迹 → 计算回报和优势 → 用 log_prob × advantage 更新策略
+```
+
+问题在于，策略梯度是 on-policy 的。公式里的期望是：
+
+$$
+\mathbb{E}_{\tau\sim\pi_\theta}[\cdots]
+$$
+
+这意味着数据必须来自当前策略 $\pi_\theta$。可是一次梯度更新之后，参数从 $\theta_{\text{old}}$ 变成 $\theta$，刚刚收集的轨迹就不再来自新策略了，而是来自旧策略 $\pi_{\text{old}}$。
+
+如果每批数据只用一次，训练会非常浪费。跑环境收集 2048 步数据很贵，尤其是在机器人、游戏模拟、LLM 生成回答这类场景里。我们自然想问：
+
+> 能不能用旧策略收集的数据，对新策略更新多轮？
+
+PPO 的核心矛盾就在这里：**我们想复用旧数据提高样本效率，但又不能让新策略离旧策略太远，否则旧数据会误导更新。**
+
+在 [ppo_from_scratch.py](../../code/chapter06_ppo/ppo_from_scratch.py) 的 `collect_trajectories` 函数中，代码特意把采样当时的 log 概率存下来：
+
+```python
+old_logprobs.append(log_prob.item())
+```
+
+这个 `old_logprobs` 就是 $\log \pi_{\text{old}}(a_t\mid s_t)$。后面更新时，模型会重新计算同一批状态动作对在新策略下的 `new_logprobs`。新旧 log 概率一比较，就能知道策略偏离了多少。下一步的重要性采样正是为了解开“旧数据能不能继续用”这个结。
+
+## 第六步：重要性采样——让旧数据重新可用
+
+上一节的问题是：朴素策略梯度必须用当前策略 $\pi_\theta$ 收集数据。能不能用旧策略 $\pi_{\text{old}}$ 收集的数据来评估新策略？可以，靠**重要性采样**。
+
+### 6.1 重要性采样的恒等式
 
 核心恒等式：对于任意函数 $f$，
 
@@ -71,7 +371,7 @@ $$= \sum_a \pi_{\text{old}}(a|s) \cdot \frac{\pi_\theta(a|s)}{\pi_{\text{old}}(a
 
 等式成立。**直觉**：我们想知道在"新世界" $\pi_\theta$ 下 $f$ 的期望值，但我们手里只有"旧世界" $\pi_{\text{old}}$ 的样本。解决方法是给每个样本加一个权重——新世界比旧世界更可能产生这个样本，权重就大于 1；反之小于 1。这个权重就是 $\frac{\pi_\theta}{\pi_{\text{old}}}$。
 
-### 2.2 策略比率
+### 6.2 策略比率
 
 定义**策略比率**（Policy Ratio）：
 
@@ -87,7 +387,7 @@ ratio = torch.exp(new_logprobs - old_logprobs)
 
 $r_t = 1$ 表示新策略和旧策略在这个动作上概率相同；$r_t > 1$ 表示新策略更倾向于选这个动作；$r_t < 1$ 则相反。
 
-### 2.3 代理目标
+### 6.3 代理目标
 
 把重要性采样应用到策略梯度目标上，得到**代理目标**（Surrogate Objective）：
 

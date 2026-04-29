@@ -197,6 +197,7 @@ flowchart TB
     R_t = \sum_{i} w_i r_{task, i} - \sum_{j} \lambda_j c_{penalty, j}
     $$
   - **代码实战**：你看真正的四足机器人 RL 代码（比如 `unitree_rl_gym` 中），每一帧的奖励计算可能长达几十行，像是在精雕细琢一门艺术：
+
     ```python
     def compute_reward(self):
         # 1. 任务奖励：鼓励机器人朝着目标速度前进（追踪指令）

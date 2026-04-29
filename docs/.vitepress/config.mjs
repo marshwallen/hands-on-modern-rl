@@ -730,7 +730,7 @@ const zhSidebar = {
             },
             {
               text: '12.2 Self-Play 与自进化',
-              link: '/chapter13_future_trends/self-play-outlook'
+              link: '/chapter13_future_trends/self-play-outlook/'
             },
             {
               text: '12.3 LLM 多智能体 RL',

@@ -1,21 +1,69 @@
 # 12.4 自博弈、自进化与学习路线
 
-AlphaGo 通过自我博弈从零开始学会了下围棋——不需要人类棋谱，不需要专家演示，只需要一个棋盘和自我对弈的循环。这个"从零到超人"的故事是 RL 最具传奇色彩的篇章之一。2025-2026 年，同样的思路正在被迁移到大语言模型：**模型能否通过和自己的博弈来持续进化，最终突破人类数据的上限？**
+AlphaGo 通过自我博弈从零开始学会了下围棋——不需要人类棋谱，不需要专家演示，只需要一个棋盘和自我对弈的循环。这个“从零到超人”的故事是 RL 最具传奇色彩的篇章之一。2025-2026 年，同样的思路正在被迁移到大语言模型：**模型能否通过和自己的博弈来持续进化，最终突破人类数据的上限？**
 
-这一节我们来拆解自博弈和自进化的核心思路，讨论它面临的挑战，最后为整本书画上一个句号——提供一条从本书出发的持续学习路线。
+这一节我们来拆解自博弈和自进化的核心思路，从底层的数学原理到具体的代码循环，讨论它面临的挑战，最后为整本书画上一个句号——提供一条从本书出发的持续学习路线。
 
-## 自博弈 RL：模型 vs 模型
+## 自博弈 RL：让模型互为对手
 
-自博弈（Self-Play）的核心思想极其优雅：**不依赖外部数据，让模型自己生成训练数据**。具体的流程是：
+自博弈（Self-Play）的核心思想极其优雅：**不依赖外部数据，让模型自己生成训练数据，并在互相对抗中寻找纳什均衡**。
 
-1. 模型生成多个候选回答（或动作）
-2. 另一个模型实例（或同一个模型）评估这些回答的质量
-3. 用评估结果作为 reward 信号更新模型
-4. 重复
+![Go Board](./images/alphago.jpg)
 
-这和第 8 章 GRPO 的"组内比较"有异曲同工之处。GRPO 让同一个模型生成多条回答，然后在组内比较它们的优劣。自博弈把这个思路进一步推远——不只是"组内比较"，而是让模型扮演不同的角色，通过博弈来共同提升。
+<div style="text-align: center; font-size: 0.9em; color: var(--vp-c-text-2); margin-top: -10px; margin-bottom: 20px;">
+  <em>图 1：围棋等零和博弈是 Self-Play 诞生的温床。通过左右手互搏，AlphaGo Zero 在几天内超越了人类千年的围棋知识积累。来源：<a href="https://commons.wikimedia.org/wiki/File:Go_board_with_stones.jpg" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></em>
+</div>
 
-### Generator-Judge 对抗训练
+具体的训练流程通常是：
+
+1. 模型生成多个候选回答（或在游戏中执行动作）。
+2. 另一个模型实例（或同一个模型）评估这些回答的质量，或者在游戏中与它对抗分出胜负。
+3. 用评估结果或胜负结果作为 reward 信号，通过 PPO 等算法更新模型策略。
+4. 将更新后的模型加入到“历史对手池”中，重复循环。
+
+### 1. 从数学上看：寻找纳什均衡 (Nash Equilibrium)
+
+在普通的单智能体 RL 中，我们的目标是最大化累积期望回报 $\max_\pi \mathbb{E}[R]$。但在自博弈中，环境是包含其他智能体的，这就变成了**多智能体强化学习（MARL）**中的博弈论问题。
+
+- **零和博弈（Zero-Sum Game）**：像围棋或 Dota 2 的 1v1，你赢的概率加上对手赢的概率等于 1。
+- **纳什均衡**：自博弈的终极目标不是“获得最高分”（因为对手也在变强，你的胜率可能永远在 50% 徘徊），而是收敛到一个**纳什均衡点**。在这个状态下，**任何单方面改变策略的智能体都会导致自己的收益下降**。
+  $$
+  V(\pi^*, \pi^*) \ge V(\pi, \pi^*) \quad \forall \pi
+  $$
+  也就是说，如果模型 $\pi^*$ 学到了纳什均衡策略，无论对手 $\pi$ 用什么阴招，它都能保证不亏（立于不败之地）。
+
+### 2. 从代码上看：虚拟对弈循环 (Fictitious Play)
+
+如果你只是让“最新版本的模型 A”和“最新版本的模型 A”一直对打，很容易陷入**策略崩溃（Policy Collapse）**：A 发明了招式 X 赢了，明天 A 发明了招式 Y 克制 X，后天 A 又发明了招式 Z 克制 Y，结果它把怎么对付 X 给忘了！
+
+因此，在工业级代码中，我们通常使用**虚拟对弈（Fictitious Play）**或维护一个**历史模型池（Model Pool）**，每次随机抽一个过去的自己作为对手：
+
+```python
+def self_play_training_loop(env, current_model, model_pool, total_iterations):
+    """一个典型的工业级 Self-Play 训练循环"""
+
+    for i in range(total_iterations):
+        # 1. 以 80% 的概率和最新的自己打，20% 的概率和历史版本打
+        if np.random.rand() < 0.8:
+            opponent = current_model
+        else:
+            opponent = random.choice(model_pool)
+
+        # 2. 在环境中收集自我对弈的数据 (Trajectories)
+        trajectories = collect_self_play_data(env, current_model, opponent)
+
+        # 3. 使用 PPO 算法更新当前模型
+        current_model.update_with_ppo(trajectories)
+
+        # 4. 定期将当前模型快照保存到历史池中，防止“灾难性遗忘”
+        if i % save_interval == 0:
+            model_pool.append(current_model.copy())
+
+        # 5. 评估 ELO 积分
+        evaluate_elo_rating(current_model, model_pool)
+```
+
+## LLM 时代的自进化：Generator-Judge 与辩论训练
 
 这是自博弈在大模型领域最常见的形态。一个模型扮演 **Generator**（生成回答），另一个模型扮演 **Judge**（评估回答质量）。两者通过对抗训练共同提升：
 
@@ -35,11 +83,17 @@ flowchart TD
 
 Generator 试图生成"让 Judge 给高分"的回答，Judge 试图"更准确地评估回答质量"。这和生成对抗网络（GAN）的思想非常相似——Generator 和 Discriminator 通过对抗共同提升。区别在于，GAN 的 Discriminator 区分"真实数据"和"生成数据"，而自博弈的 Judge 评估的是"回答质量"。
 
-### 辩论式训练
+### 辩论式训练 (Debate Training)
 
-辩论式训练（Debate Training）是自博弈的一个更有趣的变体。两个模型对同一个问题给出**不同**的回答，然后由一个裁判模型判断哪个回答更好。关键在于：两个模型可以看到对方的回答并进行反驳。
+辩论式训练是 LLM 自博弈的一个前沿变体。两个大模型对同一个问题给出**不同**的回答，然后由一个裁判模型（或人类）判断哪个回答更好。关键在于：**两个模型可以看到对方的回答并进行反驳**。
 
-这个过程迫使模型学会**严谨推理**——如果你的推理有漏洞，对手会抓住它。如果对手的推理有漏洞，你需要指出它。这种"辩论-裁判"的机制让模型在对抗中学会了更严谨的推理策略。
+这个过程迫使模型学会**严谨推理**——如果你的推理有漏洞，对手会抓住它并扣分；如果对手的推理有漏洞，你需要指出它来得分。这种“辩论-裁判”的机制让模型在对抗中学会了深度的长逻辑链推理。
+
+![Tic Tac Toe](./images/tic_tac_toe.svg)
+
+<div style="text-align: center; font-size: 0.9em; color: var(--vp-c-text-2); margin-top: -10px; margin-bottom: 20px;">
+  <em>图 2：辩论训练的本质是一场回合制的博弈。模型不仅要给出答案，还要像下棋一样思考对手可能的反驳，并提前做好防御。来源：<a href="https://commons.wikimedia.org/wiki/File:Tic_tac_toe.svg" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></em>
+</div>
 
 ```python
 def debate_training(question, model_a, model_b, judge, rounds=3):
@@ -63,21 +117,22 @@ def debate_training(question, model_a, model_b, judge, rounds=3):
 
     # 裁判评判胜负
     winner = judge.evaluate(question, answer_a, answer_b)
-    # winner 作为 reward 信号更新两个模型
+
+    # winner 的策略得到正向 reward，loser 的策略得到负向 reward
+    update_model_with_rl(model_a, model_b, winner)
     return winner
 ```
 
-## Online Learning：不停止的学习循环
+## Online Learning：永不停止的进化飞轮
 
-传统的 RLHF 是"离线"的：收集一批偏好数据 -> 训练 Reward Model -> 用 RM 指导策略优化 -> 部署。整个过程像一个瀑布——一次做完，不能回头。
+传统的 RLHF（如 PPO）通常是"离线"的：收集一批人类偏好数据 $\rightarrow$ 训练 Reward Model $\rightarrow$ 冻结 RM，用它指导策略优化 $\rightarrow$ 部署。整个过程像一个瀑布，一次做完，无法跳出人类标注的数据分布。
 
-Online Learning 把这个过程变成了一个**持续的循环**：
+自进化系统的核心是 **Online Learning（在线强化学习）**，它把这个过程变成了一个**永不停止的飞轮**：
 
-$$\text{当前策略 } \pi_\theta \xrightarrow{\text{交互}} \text{新经验} \xrightarrow{\text{更新}} \text{新策略 } \pi_{\theta'} \xrightarrow{\text{交互}} \cdots$$
+$$ \text{策略 } \pi*{\theta} \xrightarrow{\text{Self-Play 生成}} \text{新轨迹数据 } \tau \xrightarrow{\text{规则/奖励模型打分}} \text{奖励 } R \xrightarrow{\text{PPO/GRPO 更新}} \text{新策略 } \pi*{\theta'} \xrightarrow{\text{循环}} \cdots $$
 
-关键区别在于：模型可以**探索自己当前策略空间中发现的新现象**。在离线 RLHF 中，训练数据是固定的——模型只能在人类已经看过的回答类型中学习。在 Online Learning 中，模型可以探索全新的回答方式，发现人类从未想到的解题策略。
-
-DeepSeek-R1 的"涌现推理能力"某种程度上就是 Online Learning 的效果——模型通过持续探索，发现了自我验证、回溯等人类没有教过它的推理策略。
+**核心优势：突破人类上限**
+在离线 RLHF 中，模型只能在“人类已经给出的上限”内模仿。而在 Online Learning 的 Self-Play 中，模型通过自我探索，可能会发现人类从未想到的解题策略。例如在 DeepSeek-R1-Zero 中，模型完全依靠强化学习，在没有任何 SFT 冷启动的情况下，通过与规则环境的在线博弈，自己“顿悟”出了**长思维链（CoT）、自我反思、反复验证**等高级推理能力。
 
 ## 自进化系统：模型自我提升的三个维度
 
