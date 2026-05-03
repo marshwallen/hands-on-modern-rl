@@ -88,7 +88,7 @@
 
 > **Help Wanted**
 >
-> Because compute resources are limited, we are looking for borrowed compute support. If you can help with GPU access, please contact physicoada@gmail.com.
+> Because compute resources are limited, we are seeking GPU support. If you can help with GPU access, please contact physicoada@gmail.com.
 
 ## Contents
 
