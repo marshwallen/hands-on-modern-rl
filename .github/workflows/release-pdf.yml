@@ -22,6 +22,7 @@ concurrency:
 
 env:
   PDF_PATH: docs/.vitepress/dist/hands-on-modern-rl.pdf
+  PDF_ASSET_NAME: hands-on-modern-rl.pdf
 
 jobs:
   build-and-upload:
@@ -32,12 +33,14 @@ jobs:
         id: release
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            tag="${{ inputs.tag }}"
           elif [ "${{ github.event_name }}" = "release" ]; then
-            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+            tag="${{ github.event.release.tag_name }}"
           else
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            tag="${GITHUB_REF_NAME}"
           fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,15 +68,47 @@ jobs:
         run: npm run pdf:build
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          PDF_VERSION: ${{ steps.release.outputs.version }}
           PUPPETEER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
-      - name: Create release if needed
+      - name: Write release notes
+        env:
+          TAG_NAME: ${{ steps.release.outputs.tag }}
+        run: |
+          pdf_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${PDF_ASSET_NAME}"
+          cat > release-notes.md <<EOF
+          # Hands-on Modern RL PDF Book
+
+          这是《Hands-on Modern RL》的 PDF 电子书版本发布页。
+
+          ## 下载
+
+          - [下载 PDF 电子书](${pdf_url})
+
+          ## 本版内容
+
+          - README logo 书籍封面
+          - 本书简介与版本说明
+          - 目录、章节开篇页、页眉页脚和右下角页码
+          - 作者信息：WalkingLabs；散步 <https://github.com/sanbuphy>
+          - GitHub 仓库信息：<https://github.com/${GITHUB_REPOSITORY}>
+          - PDF bookmarks/outlines 与局部参考文献
+
+          ## Assets 说明
+
+          GitHub 会自动在 Assets 中显示 Source code (zip) 和 Source code (tar.gz)，那两个是源码包。请下载 hands-on-modern-rl.pdf，它才是本书 PDF。
+
+          **Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/commits/${TAG_NAME}
+          EOF
+
+      - name: Create or update release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ steps.release.outputs.tag }}
         run: |
           gh release view "$TAG_NAME" >/dev/null 2>&1 || \
-            gh release create "$TAG_NAME" --title "$TAG_NAME" --generate-notes
+            gh release create "$TAG_NAME" --title "Hands-on Modern RL PDF ${TAG_NAME}" --notes-file release-notes.md
+          gh release edit "$TAG_NAME" --title "Hands-on Modern RL PDF ${TAG_NAME}" --notes-file release-notes.md
 
       - name: Upload PDF release asset
         env:
