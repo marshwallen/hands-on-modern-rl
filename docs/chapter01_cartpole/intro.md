@@ -123,7 +123,7 @@ model = PPO("MlpPolicy", env, verbose=1)
 
 # 训练（SwanLab 自动记录奖励曲线等指标）
 model.learn(
-    total_timesteps=40000,
+    total_timesteps=80000,
     callback=SwanLabCallback(
         project="cartpole-ppo",
         experiment_name="PPO-CartPole-v1",

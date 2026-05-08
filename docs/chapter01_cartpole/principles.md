@@ -160,7 +160,7 @@ flowchart LR
 
 ### 1.1.6 解构黑盒：SB3 封装了什么？
 
-到目前为止，我们已经跑通了 CartPole 训练，读懂了训练曲线，也认识了状态、动作、奖励、策略这四个 RL 的核心要素。但在所有这些探索中，有一个环节始终是一个黑盒——那就是 `model.learn(total_timesteps=20000)` 这一行代码。它只有短短几个字，却在几秒钟内完成了从随机初始化到收敛至最优策略的全部学习过程。
+到目前为止，我们已经跑通了 CartPole 训练，读懂了训练曲线，也认识了状态、动作、奖励、策略这四个 RL 的核心要素。但在所有这些探索中，有一个环节始终是一个黑盒——那就是 `model.learn(total_timesteps=80000)` 这一行代码。它只有短短几个字，却在几秒钟内完成了从随机初始化到收敛至最优策略的全部学习过程。
 
 SB3 封装了大量的工程细节——这种封装使我们在第一章不必面对复杂的数学和冗长的代码。但如果不理解其内部机制，后续学习策略梯度（第 5 章）和 PPO（第 6 章）时就会感到内容凭空出现。正如你可以开着汽车上路，而不必理解发动机的每个零件——但如果要自己造一辆车，就得打开引擎盖。
 
@@ -291,7 +291,7 @@ def ppo_update(model, optimizer, transitions, advantages, returns, clip_eps=0.2)
             # 熵奖励：鼓励探索
             entropy = dist.entropy().mean()
 
-            loss = policy_loss + 0.5 * value_loss - 0.01 * entropy
+            loss = policy_loss + 0.5 * value_loss - 0.0 * entropy
             loss.backward()
             optimizer.step()
 ```
@@ -334,7 +334,7 @@ model = ActorCritic()
 optimizer = Adam(model.parameters(), lr=3e-4)
 env = gym.make("CartPole-v1")
 
-for iteration in range(20):
+for iteration in range(40):
     # 第一步：收集经验数据（2048 步）
     transitions, bootstrap = collect_rollout(model, env, 2048)
 
@@ -345,7 +345,7 @@ for iteration in range(20):
     metrics = ppo_update(model, optimizer, transitions, advantages, returns)
 ```
 
-这三步循环，就是 `model.learn(total_timesteps=20000)` 的本质。SB3 将这个循环封装为一行代码，并提供了一整套经过充分验证的默认超参数（学习率、批量大小、裁剪范围、GAE 参数等），使使用者无需关注底层细节即可完成训练。
+这三步循环，就是 `model.learn(total_timesteps=80000)` 的本质。SB3 将这个循环封装为一行代码，并提供了一整套经过充分验证的默认超参数（学习率、批量大小、裁剪范围、GAE 参数等），使使用者无需关注底层细节即可完成训练。
 
 而我们的 [2-pytorch_ppo.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter01_cartpole/2-pytorch_ppo.py) 用纯 PyTorch 实现了同样的逻辑——独立 Actor-Critic 网络、正交初始化、正确的 truncated 处理、GAE 优势估计、PPO 裁剪、SwanLab 指标记录——最终效果和 SB3 持平，20 回合评估全部 500 满分。
 
