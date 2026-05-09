@@ -1,71 +1,88 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 150" width="320" height="150">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 280" width="480" height="280">
   <defs>
+    <style>
+      text { font-family: 'Helvetica Neue', Arial, sans-serif; }
+    </style>
     <marker id="arr" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">
       <path d="M0,0 L6,2 L0,4 Z" fill="#555"/>
     </marker>
   </defs>
 
-  <!-- ===== TOP: Tabular Q-table ===== -->
+  <!-- ===== TOP: Tabular ===== -->
+  <text x="10" y="18" font-size="14" font-weight="bold" fill="#1976d2">表格：局部更新</text>
+
   <!-- Before -->
-  <rect x="5" y="5" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="30" y="20" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">2.0</text>
-  <rect x="55" y="5" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="80" y="20" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">5.0</text>
-  <rect x="5" y="29" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="30" y="44" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">3.0</text>
-  <rect x="55" y="29" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="80" y="44" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">8.0</text>
+  <text x="10" y="42" font-size="11" fill="#888">更新前</text>
+  <rect x="60" y="28" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="87" y="46" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">2.0</text>
+  <rect x="115" y="28" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="142" y="46" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">5.0</text>
+  <rect x="60" y="54" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="87" y="72" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">3.0</text>
+  <rect x="115" y="54" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="142" y="72" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">8.0</text>
+  <!-- Target highlight -->
+  <rect x="113" y="52" width="59" height="30" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
 
   <!-- Arrow -->
-  <line x1="110" y1="29" x2="128" y2="29" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="178" y1="52" x2="215" y2="52" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
 
-  <!-- After: only Q(s1,a2) changed -->
-  <rect x="138" y="5" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="163" y="20" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">2.0</text>
-  <rect x="188" y="5" width="50" height="24" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2" rx="3"/>
-  <text x="213" y="20" text-anchor="middle" font-size="13" font-family="monospace" fill="#2e7d32">5.46</text>
-  <rect x="138" y="29" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="163" y="44" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">3.0</text>
-  <rect x="188" y="29" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="213" y="44" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">8.0</text>
+  <!-- After -->
+  <text x="230" y="42" font-size="11" fill="#888">更新后</text>
+  <rect x="225" y="28" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="252" y="46" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">2.0</text>
+  <rect x="280" y="28" width="55" height="26" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2" rx="3"/>
+  <text x="307" y="46" text-anchor="middle" font-size="13" font-family="monospace" fill="#2e7d32">5.46</text>
+  <rect x="225" y="54" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="252" y="72" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">3.0</text>
+  <rect x="280" y="54" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="307" y="72" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">8.0</text>
+  <!-- Target unchanged highlight -->
+  <rect x="278" y="52" width="59" height="30" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
 
-  <!-- Target highlight: 8.0 unchanged -->
-  <rect x="186" y="27" width="54" height="28" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
+  <!-- Annotation -->
+  <text x="155" y="98" text-anchor="middle" font-size="11" fill="#2e7d32">只改了 Q(s₁,a₂)，TD Target 中的 8.0 不受影响</text>
 
-  <!-- ===== DIVIDER ===== -->
-  <line x1="0" y1="66" x2="320" y2="66" stroke="#ddd" stroke-width="1"/>
+  <!-- Divider -->
+  <line x1="10" y1="112" x2="470" y2="112" stroke="#ddd" stroke-width="1"/>
 
   <!-- ===== BOTTOM: Neural Network ===== -->
-  <!-- Before -->
-  <rect x="5" y="78" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="30" y="93" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">2.0</text>
-  <rect x="55" y="78" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="80" y="93" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">5.0</text>
-  <rect x="5" y="102" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="30" y="117" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">3.0</text>
-  <rect x="55" y="102" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
-  <text x="80" y="117" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">8.0</text>
+  <text x="10" y="135" font-size="14" font-weight="bold" fill="#e74c3c">神经网络：全局更新</text>
 
-  <!-- Target highlight on 8.0 -->
-  <rect x="53" y="100" width="54" height="28" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
+  <!-- Before -->
+  <text x="10" y="160" font-size="11" fill="#888">更新前</text>
+  <rect x="60" y="146" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="87" y="164" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">2.0</text>
+  <rect x="115" y="146" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="142" y="164" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">5.0</text>
+  <rect x="60" y="172" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="87" y="190" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">3.0</text>
+  <rect x="115" y="172" width="55" height="26" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="142" y="190" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">8.0</text>
+  <!-- Target highlight -->
+  <rect x="113" y="170" width="59" height="30" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
 
   <!-- Arrow -->
-  <line x1="110" y1="102" x2="128" y2="102" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="178" y1="172" x2="215" y2="172" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
 
   <!-- After: ALL values changed -->
-  <rect x="138" y="78" width="50" height="24" fill="#ffcdd2" stroke="#e74c3c" stroke-width="1.5" rx="3"/>
-  <text x="163" y="93" text-anchor="middle" font-size="13" font-family="monospace" fill="#c0392b">2.3</text>
-  <rect x="188" y="78" width="50" height="24" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2" rx="3"/>
-  <text x="213" y="93" text-anchor="middle" font-size="13" font-family="monospace" fill="#2e7d32">6.5</text>
-  <rect x="138" y="102" width="50" height="24" fill="#ffcdd2" stroke="#e74c3c" stroke-width="1.5" rx="3"/>
-  <text x="163" y="117" text-anchor="middle" font-size="13" font-family="monospace" fill="#c0392b">2.7</text>
-  <rect x="188" y="102" width="50" height="24" fill="#ffcdd2" stroke="#e74c3c" stroke-width="2" rx="3"/>
-  <text x="213" y="117" text-anchor="middle" font-size="13" font-family="monospace" fill="#c0392b">6.3</text>
+  <text x="230" y="160" font-size="11" fill="#888">更新后</text>
+  <rect x="225" y="146" width="55" height="26" fill="#ffcdd2" stroke="#e74c3c" stroke-width="1.5" rx="3"/>
+  <text x="252" y="164" text-anchor="middle" font-size="13" font-family="monospace" fill="#c0392b">2.3</text>
+  <rect x="280" y="146" width="55" height="26" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2" rx="3"/>
+  <text x="307" y="164" text-anchor="middle" font-size="13" font-family="monospace" fill="#2e7d32">6.5</text>
+  <rect x="225" y="172" width="55" height="26" fill="#ffcdd2" stroke="#e74c3c" stroke-width="1.5" rx="3"/>
+  <text x="252" y="190" text-anchor="middle" font-size="13" font-family="monospace" fill="#c0392b">2.7</text>
+  <rect x="280" y="172" width="55" height="26" fill="#ffcdd2" stroke="#e74c3c" stroke-width="2" rx="3"/>
+  <text x="307" y="190" text-anchor="middle" font-size="13" font-family="monospace" fill="#c0392b">6.3</text>
+  <!-- Target highlight: moved -->
+  <rect x="278" y="170" width="59" height="30" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
 
-  <!-- Target highlight: moved from 8.0 to 6.3 -->
-  <rect x="186" y="100" width="54" height="28" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
+  <!-- Curved arrow showing target moved -->
+  <path d="M142,204 C142,230 307,230 307,204" stroke="#f57c00" stroke-width="1.3" fill="none" stroke-dasharray="4,3"/>
+  <text x="225" y="244" text-anchor="middle" font-size="11" fill="#f57c00">TD Target：8.0 → 6.3，目标跟着跑了！</text>
 
-  <!-- Arrow showing target moved down -->
-  <line x1="97" y1="114" x2="183" y2="114" stroke="#f57c00" stroke-width="1"/>
-  <polygon points="181,111 185,114 181,117" fill="#f57c00"/>
+  <!-- Legend -->
+  <text x="385" y="160" font-size="10" fill="#888">绿色 = 预期更新</text>
+  <text x="385" y="176" font-size="10" fill="#888">红色 = 连带变化</text>
 </svg>
