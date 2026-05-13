@@ -8,15 +8,15 @@
 
 [EasyR1](https://github.com/hiyouga/EasyR1)（4900+ stars）由 [hiyouga](https://github.com/hiyouga) 开发，基于 veRL 构建。和直接用 veRL 相比，EasyR1 的核心增值点：
 
-| 特性 | veRL 原版 | EasyR1 |
-|------|----------|--------|
-| VLM 支持 | 需要自己适配 | 原生支持 Qwen2-VL / Qwen3-VL 等多模态模型 |
-| LoRA | 不内置 | 内置 LoRA，一行配置开启 |
-| Padding | 标准 padding | Padding-free training，减少无效 token 计算 |
-| 配置方式 | Python 代码 | YAML + CLI 点号覆盖，不用改代码 |
-| 算法 | PPO | GRPO / DAPO / REINFORCE++ / ReMax / RLOO 等 7 种 |
-| 奖励函数 | 需要实现 veRL 接口 | 普通 Python 文件，定义 `compute_score()` 即可 |
-| Docker | 需要自己组装 | 预构建镜像，拉下来就能跑 |
+| 特性     | veRL 原版          | EasyR1                                           |
+| -------- | ------------------ | ------------------------------------------------ |
+| VLM 支持 | 需要自己适配       | 原生支持 Qwen2-VL / Qwen3-VL 等多模态模型        |
+| LoRA     | 不内置             | 内置 LoRA，一行配置开启                          |
+| Padding  | 标准 padding       | Padding-free training，减少无效 token 计算       |
+| 配置方式 | Python 代码        | YAML + CLI 点号覆盖，不用改代码                  |
+| 算法     | PPO                | GRPO / DAPO / REINFORCE++ / ReMax / RLOO 等 7 种 |
+| 奖励函数 | 需要实现 veRL 接口 | 普通 Python 文件，定义 `compute_score()` 即可    |
+| Docker   | 需要自己组装       | 预构建镜像，拉下来就能跑                         |
 
 EasyR1 的项目结构：
 
@@ -291,18 +291,18 @@ CLI 的点号语法会逐层覆盖 YAML 中的对应字段。比如 `worker.acto
 
 ```yaml
 data:
-  train_files: leonardPKU/GEOQA_8K_R1V@train  # HuggingFace 数据集@split
+  train_files: leonardPKU/GEOQA_8K_R1V@train # HuggingFace 数据集@split
   val_files: leonardPKU/GEOQA_8K_R1V@test
-  prompt_key: problem      # 数据集中题目所在列名
-  answer_key: answer       # 数据集中答案所在列名
-  image_key: images        # 数据集中图片所在列名
-  max_prompt_length: 2048  # prompt 最大 token 数（含图片 token）
-  max_response_length: 2048  # 模型生成最大 token 数
-  rollout_batch_size: 512  # 每步 rollout 的总 batch size
-  format_prompt: ./examples/format_prompt/r1v.jinja  # prompt 模板
-  min_pixels: 262144       # 图片最小像素（512×512）
-  max_pixels: 4194304      # 图片最大像素（2048×2048）
-  filter_overlong_prompts: true  # 过滤掉超长的 prompt
+  prompt_key: problem # 数据集中题目所在列名
+  answer_key: answer # 数据集中答案所在列名
+  image_key: images # 数据集中图片所在列名
+  max_prompt_length: 2048 # prompt 最大 token 数（含图片 token）
+  max_response_length: 2048 # 模型生成最大 token 数
+  rollout_batch_size: 512 # 每步 rollout 的总 batch size
+  format_prompt: ./examples/format_prompt/r1v.jinja # prompt 模板
+  min_pixels: 262144 # 图片最小像素（512×512）
+  max_pixels: 4194304 # 图片最大像素（2048×2048）
+  filter_overlong_prompts: true # 过滤掉超长的 prompt
 ```
 
 `rollout_batch_size: 512` 意味着每一步 GRPO 更新会对 512 个 prompt 各生成 `rollout.n` 个回答。GeoQA-8K 训练集约 8000 条，一个 epoch 约 16 步。
@@ -311,11 +311,11 @@ data:
 
 ```yaml
 algorithm:
-  adv_estimator: grpo       # 使用 GRPO（组内相对优势估计）
-  disable_kl: false         # 启用 KL 惩罚
-  use_kl_loss: true         # KL 作为损失项（vs 奖励惩罚）
-  kl_penalty: low_var_kl    # 低方差 KL 估计器
-  kl_coef: 1.0e-2           # KL 惩罚系数
+  adv_estimator: grpo # 使用 GRPO（组内相对优势估计）
+  disable_kl: false # 启用 KL 惩罚
+  use_kl_loss: true # KL 作为损失项（vs 奖励惩罚）
+  kl_penalty: low_var_kl # 低方差 KL 估计器
+  kl_coef: 1.0e-2 # KL 惩罚系数
 ```
 
 `low_var_kl` 是一种方差更低的 KL 估计方式，比标准 KL 更稳定。`kl_coef=0.01` 是 EasyR1 的默认值，比 PPO 的典型值（0.05）更小，因为 GRPO 的组内标准化本身就有正则化效果。
@@ -337,31 +337,31 @@ algorithm:
 ```yaml
 worker:
   actor:
-    global_batch_size: 128  # PPO 更新的 mini-batch 大小
-    micro_batch_size_per_device_for_update: 1  # 每张卡的 micro batch
-    max_grad_norm: 1.0      # 梯度裁剪
-    padding_free: true      # 无 padding 训练，节省计算
-    clip_ratio_low: 0.2     # PPO 裁剪下界
-    clip_ratio_high: 0.3    # PPO 裁剪上界（非对称裁剪）
+    global_batch_size: 128 # PPO 更新的 mini-batch 大小
+    micro_batch_size_per_device_for_update: 1 # 每张卡的 micro batch
+    max_grad_norm: 1.0 # 梯度裁剪
+    padding_free: true # 无 padding 训练，节省计算
+    clip_ratio_low: 0.2 # PPO 裁剪下界
+    clip_ratio_high: 0.3 # PPO 裁剪上界（非对称裁剪）
     model:
       model_path: Qwen/Qwen2.5-VL-3B-Instruct
-      enable_gradient_checkpointing: true  # 梯度检查点，省显存
-      freeze_vision_tower: false  # 是否冻结视觉编码器
+      enable_gradient_checkpointing: true # 梯度检查点，省显存
+      freeze_vision_tower: false # 是否冻结视觉编码器
       lora:
-        rank: 0             # 0 = 全参训练；>0 启用 LoRA
+        rank: 0 # 0 = 全参训练；>0 启用 LoRA
         alpha: 64
-        target_modules: all-linear   # 对所有线性层做 LoRA
-        exclude_modules: .*visual.*  # 但排除视觉编码器
+        target_modules: all-linear # 对所有线性层做 LoRA
+        exclude_modules: .*visual.* # 但排除视觉编码器
     optim:
-      lr: 1.0e-6            # 学习率（VLM RL 通常 1e-6 ~ 5e-6）
-      strategy: adamw       # 优化器
+      lr: 1.0e-6 # 学习率（VLM RL 通常 1e-6 ~ 5e-6）
+      strategy: adamw # 优化器
 
   rollout:
-    n: 5                    # 每个 prompt 生成 5 个回答（GRPO 组大小）
-    temperature: 1.0        # 生成温度
-    top_p: 1.0              # top-p 采样
+    n: 5 # 每个 prompt 生成 5 个回答（GRPO 组大小）
+    temperature: 1.0 # 生成温度
+    top_p: 1.0 # top-p 采样
     tensor_parallel_size: 1 # vLLM 张量并行度
-    gpu_memory_utilization: 0.6  # vLLM 显存占用比例
+    gpu_memory_utilization: 0.6 # vLLM 显存占用比例
 
   reward:
     reward_function: ./examples/reward_function/r1v.py:compute_score
@@ -379,17 +379,17 @@ worker:
 
 ```yaml
 trainer:
-  total_epochs: 15          # 训练轮数
-  val_freq: 5               # 每 5 步验证一次
-  val_before_train: true    # 训练前先跑一轮验证（获取 baseline）
-  save_freq: 5              # 每 5 步保存 checkpoint
-  save_limit: 3             # 最多保留 3 个 checkpoint
+  total_epochs: 15 # 训练轮数
+  val_freq: 5 # 每 5 步验证一次
+  val_before_train: true # 训练前先跑一轮验证（获取 baseline）
+  save_freq: 5 # 每 5 步保存 checkpoint
+  save_limit: 3 # 最多保留 3 个 checkpoint
   find_last_checkpoint: true # 自动从最新 checkpoint 恢复
-  logger: ["console", "wandb"]  # 日志后端
-  project_name: easy_r1     # WandB 项目名
-  experiment_name: qwen2_5_vl_3b_geoqa8k  # 实验名
-  nnodes: 1                 # 节点数
-  n_gpus_per_node: 8        # 每节点 GPU 数
+  logger: ['console', 'wandb'] # 日志后端
+  project_name: easy_r1 # WandB 项目名
+  experiment_name: qwen2_5_vl_3b_geoqa8k # 实验名
+  nnodes: 1 # 节点数
+  n_gpus_per_node: 8 # 每节点 GPU 数
 ```
 
 ### LoRA 配置（省显存）
@@ -415,6 +415,7 @@ python3 -m verl.tainer.main \
 ```
 
 关键变化：
+
 - `lora.rank=16`：启用 LoRA，将可训练参数降到约 0.1%
 - `freeze_vision_tower=true`：冻结视觉编码器（LoRA 模式下推荐冻结，避免视觉编码器退化）
 - `exclude_modules=".*visual.*"`：LoRA 只应用于语言模型部分，不动视觉编码器
@@ -475,6 +476,7 @@ python3 -m verl.tainer.main \
 ```
 
 关键分布式参数：
+
 - `trainer.nnodes=2`：告诉框架有 2 个节点
 - `worker.rollout.tensor_parallel_size=4`：vLLM 推理用 4 卡张量并行
 - `worker.actor.ulysses_size=1`：Ulysses 序列并行度（长序列时可增大）
@@ -634,15 +636,15 @@ model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
 
 ## 和 11.1 节手写实验的对比
 
-| 方面 | 11.1 手写 GRPO | 本节 EasyR1 |
-|------|---------------|-------------|
-| 数据集 | 合成几何图形（自己生成） | GeoQA-8K 真实数据集 |
-| 推理引擎 | `model.generate()` 逐条 | vLLM continuous batching |
-| 训练引擎 | 单卡 AdamW | veRL + FSDP |
-| 显存优化 | 无 | LoRA + padding-free + gradient checkpointing |
-| 分布式 | 单进程 | Ray 集群，支持多机多卡 |
-| 日志 | print | WandB / TensorBoard / SwanLab |
-| 训练规模 | ~500 条，几分钟 | ~8K 条，几小时 |
+| 方面     | 11.1 手写 GRPO           | 本节 EasyR1                                  |
+| -------- | ------------------------ | -------------------------------------------- |
+| 数据集   | 合成几何图形（自己生成） | GeoQA-8K 真实数据集                          |
+| 推理引擎 | `model.generate()` 逐条  | vLLM continuous batching                     |
+| 训练引擎 | 单卡 AdamW               | veRL + FSDP                                  |
+| 显存优化 | 无                       | LoRA + padding-free + gradient checkpointing |
+| 分布式   | 单进程                   | Ray 集群，支持多机多卡                       |
+| 日志     | print                    | WandB / TensorBoard / SwanLab                |
+| 训练规模 | ~500 条，几分钟          | ~8K 条，几小时                               |
 
 EasyR1 帮你省掉的工作量：vLLM rollout 的集成、FSDP 分布式训练的调度、LoRA 的实现、梯度累积和显存优化、checkpoint 管理和恢复。你只需要关注两个核心决策：(1) 数据集怎么选，(2) reward 函数怎么设计。这两个决策也恰恰是 VLM RL 训练中最影响效果的因素。
 

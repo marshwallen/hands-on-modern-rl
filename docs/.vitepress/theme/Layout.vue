@@ -330,21 +330,17 @@ function handleMermaidImageClick(event) {
 
 function initMermaidViewer() {
   if (typeof document === 'undefined') return
-  document
-    .querySelectorAll('.main')
-    .forEach((main) => {
-      main.removeEventListener('click', handleMermaidImageClick)
-      main.addEventListener('click', handleMermaidImageClick)
-    })
+  document.querySelectorAll('.main').forEach((main) => {
+    main.removeEventListener('click', handleMermaidImageClick)
+    main.addEventListener('click', handleMermaidImageClick)
+  })
 }
 
 function cleanupMermaidViewer() {
   if (typeof document === 'undefined') return
-  document
-    .querySelectorAll('.main')
-    .forEach((main) => {
-      main.removeEventListener('click', handleMermaidImageClick)
-    })
+  document.querySelectorAll('.main').forEach((main) => {
+    main.removeEventListener('click', handleMermaidImageClick)
+  })
 }
 
 function resetFontSize() {

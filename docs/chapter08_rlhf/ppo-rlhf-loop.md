@@ -136,12 +136,12 @@ RM 给了正分 $R = +1.5$。
 
 这个区别在 CartPole 里不明显（每步动作直接影响倒立摆），但在 LLM 里就很关键：一条回答通常几十到几百个 token，其中真正决定质量的往往只有几个。如果所有 token 被平均更新，梯度信号就被大量无关 token 稀释了。
 
-| 维度     | 序列级                        | Token 级                            |
-| -------- | ----------------------------- | ----------------------------------- |
-| 梯度信号 | 所有 token 共享同一个 $R$     | 每个 token 有独立的 $A_t$           |
-| 信用分配 | 无法区分关键与无关 token      | 通过 GAE 反向传播区分贡献           |
-| 学习效率 | 低：大量 token 被平均更新     | 高：关键 token 获得更强的梯度信号   |
-| 典型方法 | REINFORCE                    | PPO、GRPO                           |
+| 维度     | 序列级                    | Token 级                          |
+| -------- | ------------------------- | --------------------------------- |
+| 梯度信号 | 所有 token 共享同一个 $R$ | 每个 token 有独立的 $A_t$         |
+| 信用分配 | 无法区分关键与无关 token  | 通过 GAE 反向传播区分贡献         |
+| 学习效率 | 低：大量 token 被平均更新 | 高：关键 token 获得更强的梯度信号 |
+| 典型方法 | REINFORCE                 | PPO、GRPO                         |
 
 **粒度越细，模型越能区分哪些决策真正重要，学习效率越高。** 后面 GRPO（第 9 章）和 Agentic RL（第 10 章）会进一步利用这一特性，在更长、更复杂的轨迹上做细粒度信用分配。
 
@@ -195,12 +195,13 @@ $$
 :::
 
 ::: details 延伸阅读：Token 级策略梯度的相关论文
+
 - **InstructGPT** (Ouyang et al., 2022) — [arxiv.org/abs/2203.02155](https://arxiv.org/abs/2203.02155)。PPO 应用于 RLHF 的经典工作。奖励是序列级的，但策略梯度损失在 token 级计算，是工业界 token 级策略梯度的标准做法。
 - **DeepSeekMath** (Shao et al., 2024) — [arxiv.org/abs/2402.03300](https://arxiv.org/abs/2402.03300)。提出 GRPO，在数学推理场景中分析了 token 级信用分配对长推理链的重要性。
 - **TDPO** (Zeng et al., 2024) — [arxiv.org/abs/2404.11999](https://arxiv.org/abs/2404.11999)。Token-level Direct Preference Optimization，直接在 token 级做 DPO。论文 Section 3 对 token 级与序列级损失做了明确的数学对比。
 - **ReMax** (Li et al., 2024) — [arxiv.org/abs/2310.10505](https://arxiv.org/abs/2310.10505)。讨论 token 级与序列级信用分配的差异，提出基于 REINFORCE 的改进方法。
-- **Sutton & Barto, *Reinforcement Learning: An Introduction*** 第 13 章 — [incompleteideas.net/book](http://incompleteideas.net/book/the-book.html)。策略梯度的逐时间步（per time-step）推导，是 token 级策略梯度的理论基础。
-:::
+- **Sutton & Barto, _Reinforcement Learning: An Introduction_** 第 13 章 — [incompleteideas.net/book](http://incompleteideas.net/book/the-book.html)。策略梯度的逐时间步（per time-step）推导，是 token 级策略梯度的理论基础。
+  :::
 
 ## PPO-RLHF 单步更新
 
