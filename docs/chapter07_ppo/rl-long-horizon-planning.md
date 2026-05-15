@@ -187,7 +187,7 @@ MCTS 的核心思想是：不需要遍历所有可能的未来（那太多了）
 
 1. **选择（Selection）**：从根节点出发，用 UCB（Upper Confidence Bound）公式选择最有潜力的子节点，直到到达一个尚未扩展的节点。UCB 公式为：
 
-$$\text{UCB}(a) = Q(s, a) + c \cdot \sqrt{\frac{\ln N(s)}{N(s, a)}}}$$
+$$\text{UCB}(a) = Q(s, a) + c \cdot \sqrt{\frac{\ln N(s)}{N(s, a)}}$$
 
 其中 $Q(s,a)$ 是动作价值估计，$N(s)$ 和 $N(s,a)$ 是访问次数，$c$ 是探索常数。第一项鼓励利用已知的好动作，第二项鼓励探索访问少的动作。
 
