@@ -1,234 +1,220 @@
 ---
-title: 5.2 The Policy Gradient Theorem and REINFORCE
+title: 5.1 Why We Need Policy Gradients
 ---
 
-# 5.2 The Policy Gradient Theorem and REINFORCE
+# 5.1 Why We Need Policy Gradients
 
-In the previous section, we personally ran the bandit experiment and watched the policy network evolve from "randomly choosing" to "firmly choosing B". The core code was only one line:
-`loss = -log_prob * reward`.
+## Section Overview
 
-But that leaves a deeper question: why can this simple formula achieve that? Why does multiplying `log_prob` by `reward` make the network "prefer good actions"? This is not obvious, at least not in the same way as "compute the $Q$ value of every action and take the maximum" feels intuitive (review: [Q(s,a): scoring actions](../chapter03_mdp/value-q)).
+**Key takeaways**
 
-This section is devoted to unpacking that line of code. You will see that behind it sits an elegant theorem: the **policy gradient theorem**. It is the theoretical foundation of policy-based RL, and also the mathematical starting point for later algorithms such as PPO and GRPO in large-model alignment.
+- Review the core idea of DQN from Chapter 4: learn $Q(s,a)$, then use $\arg\max$ to select actions.
+- Understand the fundamental limitation of value-based methods: they can only handle a finite set of discrete actions.
+- Understand why policy-based methods learn $\pi_\theta(a|s)$ directly, and the essential differences between the two routes in terms of action spaces, exploration mechanisms, and data efficiency.
 
-## Value-Based vs. Policy-Based
+## What DQN Got Right
 
-Before we dive into the math, it is worth stepping back and clarifying how the methods in this chapter differ, in substance, from DQN in Chapter 4. These are not just two parallel "styles"; they differ fundamentally in how they solve problems, what kinds of problems they can handle, and what their engineering tradeoffs look like.
+The DQN from Chapter 4 follows a clear recipe: approximate $Q(s,a)$ with a neural network, assign a score to each action, then pick the highest-scoring one with $\arg\max_a Q(s,a)$. The underlying logic is: rather than learning "what to do" directly, first learn "how much each action is worth" and then select the best. The policy is implicit -- it is hidden inside the $\arg\max$ over the $Q$-value table.
 
-### The Core Idea
+Consider a concrete moment in CartPole. Suppose the current state is $s = [0.05,\; 0.1,\; -0.02,\; 0.3]$ (position, velocity, pole angle, angular velocity). The DQN network performs one forward pass on this state and outputs two $Q$ values:
 
-**Value-based** methods (DQN in Chapter 4) are, at their core, about **scoring**: learn a $Q(s,a)$ that assigns a score to each action, then choose the action with the highest score. The policy is implicit: we do not learn "what to do" directly; instead we obtain it indirectly via $\arg\max_a Q(s,a)$ (review: [Q(s,a) and greedy policies](../chapter03_mdp/value-q)).
+| Action      | $Q(s,a)$ |
+| ----------- | -------- |
+| Push left   | $0.8$    |
+| Push right  | $1.2$    |
 
-**Policy-based** methods (this chapter) are, at their core, about **learning the policy directly**: parameterize $\pi_\theta(a|s)$, output a probability for each action, then optimize parameters $\theta$ to maximize expected return (review: [the policy objective $J(\theta)$](../chapter03_mdp/policy-objective)). The policy is explicit: there is no intermediate scoring step.
+$\arg\max$ simply compares them and returns the action with the highest value:
 
-|                        | Value-Based (DQN)                                                                              | Policy-Based (Policy Gradient)                          |
-| ---------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| What it learns         | $Q(s,a)$: how many points each action is worth                                                 | $\pi_\theta(a\|s)$: the probability assigned to actions |
-| How it chooses actions | $\arg\max_a Q(s,a)$ (take the highest score)                                                   | Sample from $\pi_\theta(\cdot\|s)$                      |
-| Policy form            | Deterministic (always pick the max)                                                            | Stochastic (outputs a distribution)                     |
-| Math tools             | [Bellman equations](../chapter03_mdp/value-bellman) + [TD learning](../chapter03_mdp/dp-mc-td) | Policy gradient theorem + gradient ascent               |
+$$
+a^* = \arg\max_a Q(s,a) = \arg\max\{0.8,\; 1.2\} = \text{push right}.
+$$
 
-### Action Spaces
+The key prerequisite is that the set of actions is finite and small, so we can compute a $Q$ value for each one and compare them all. CartPole has only 2 actions, so we compare 2 numbers; LunarLander has 4 actions, so we compare 4 numbers. Scale up to 10, 100, or even 1000 actions, and $\arg\max$ still works -- it just requires computing a few more $Q$ values and doing more comparisons, but the cost grows linearly with no fundamental difficulty.
 
-Value-based methods have a hard constraint: **they can only handle a finite set of discrete actions**. The $\arg\max$ rule requires comparing $Q$ values across all actions. This is fine in CartPole (only 2 actions). But a robot arm's joint torques are continuous values; if the action is, say, $[-10, 10]^6$, then $\arg\max$ over infinitely many candidates is not something you can compute.
+| Number of actions | $Q$ values to compute | $\arg\max$ comparisons | Feasibility |
+| ----------------- | --------------------- | ---------------------- | ----------- |
+| 2                 | 2                     | 1                      | Easy        |
+| 4                 | 4                     | 3                      | Easy        |
+| 1000              | 1000                  | 999                    | Feasible    |
+| $10^6$            | $10^6$                | $10^6 - 1$             | Feasible but slow |
+| $\infty$          | $\infty$              | $\infty$               | Impossible  |
 
-Text generation in large language models is even more extreme in a different sense: each step chooses among tens of thousands of tokens, and the full sequence space is combinatorial. You cannot maintain a $Q$ table over all combinations.
+The last row is where the problem lies. When the action space is continuous, there are infinitely many actions. It is impossible to compute a $Q$ value for each one, let alone find the maximum among infinitely many values.
 
-Policy-based methods do not compare action scores. They output a probability distribution directly: a Softmax for discrete actions, a Gaussian distribution for continuous actions. With essentially the same policy-gradient machinery, changing the output head can switch you from "left/right" to "continuous torque".
+## Where $\arg\max$ Breaks Down
 
-### Exploration
+$\arg\max$ requires comparing the $Q$ values of all actions. As long as the number of actions is finite, this poses no problem. But many real-world tasks have continuous action spaces with infinitely many actions.
 
-DQN's policy is deterministic (it always takes $\arg\max$), so exploration must be injected externally. In Chapter 4, we used $\varepsilon$-greedy: with probability $\varepsilon$ act randomly; otherwise choose the action with the highest $Q$ value. The $\varepsilon$ schedule must be hand-tuned: too large wastes experience; too small fails to explore (review: [the three components of DQN](../chapter04_dqn/dqn-components)).
+### Robot Arm: Curse of Dimensionality
 
-Policy gradients naturally output a probability distribution, so exploration is built in. If the network believes an action is worth trying with probability 30%, it will try it 30% of the time. In the previous bandit experiment, the policy started from a uniform distribution and gradually converged to "firmly choose B". There was no $\varepsilon$ schedule; the transition from exploration to exploitation emerged naturally.
+Controlling a robot arm is a canonical example. The shoulder, elbow, and wrist joints each have multiple degrees of freedom, and each degree of freedom applies a continuous torque $\tau \in [-10, 10]$. With 6 joints, the action space is $[-10, 10]^6$ -- infinitely many points in a six-dimensional continuous space. It is impossible to compute a $Q$ value for every point, let alone find the $\arg\max$ over infinitely many points.
 
-### Data Reuse
+A natural idea is to discretize the continuous space and then apply $\arg\max$. For instance, allow only 100 torque values per joint, approximating the continuous space with a finite grid. With 6 joints each taking 100 values, the total number of actions is:
 
-This is the most practical engineering difference between the two routes. DQN is **off-policy**: a replay buffer stores old data, which can be reused over and over for training (review: [experience replay](../chapter04_dqn/dqn-components)). One transition can appear in many batches, so data efficiency is high.
+$$
+N = 100^6 = 10^{12}.
+$$
 
-Policy gradients are **on-policy**: the expectation $\mathbb{E}_{\pi_\theta}$ in the gradient estimator requires data generated by the current policy $\pi_\theta$. Once the policy updates, old data no longer matches the current distribution. This means policy gradients are inherently less data-efficient than DQN, and this is their largest engineering drawback.
+$10^{12}$ actions, each requiring one $Q$-value computation. If a single forward pass of the neural network takes $1\mu\text{s}$ ($10^{-6}$ seconds), then **a single action selection** requires:
 
-### Summary
+$$
+T = 10^{12} \times 10^{-6}\text{s} = 10^6\text{s} \approx 11.6 \text{ days}.
+$$
 
-|               | Value-Based                           | Policy-Based                            |
-| ------------- | ------------------------------------- | --------------------------------------- |
-| Action space  | Discrete only                         | Discrete + continuous                   |
-| Policy type   | Deterministic                         | Stochastic (a probability distribution) |
-| Exploration   | External (e.g., $\varepsilon$-greedy) | Built in (sampling from the policy)     |
-| Data reuse    | Off-policy (replay buffer)            | On-policy (must use fresh data)         |
-| Typical issue | Continuous actions are hard           | High variance, sample inefficiency      |
+11.6 days just to choose one action. By contrast, a policy network needs only one forward pass -- feed the state into the network and directly output the action vector, taking roughly $1\text{ms}$:
 
-We now return to the central question of this chapter: if we choose to represent the policy directly as $\pi_\theta(a|s)$, what objective should we optimize, and how do we compute its gradient?
+| Method                | Computation per action selection                     | Time                  |
+| --------------------- | ---------------------------------------------------- | --------------------- |
+| DQN + discretization  | $10^{12}$ forward passes                             | $\approx 11.6$ days   |
+| Policy network        | 1 forward pass, directly outputs $\mu = f_\theta(s)$ | $\approx 1\text{ms}$  |
 
-## The Policy Objective $J(\theta)$
+And this is only 6 joints with each joint discretized to 100 values. With more joints or finer precision requirements, the number of discretized actions grows exponentially. This is the **curse of dimensionality**: each additional joint multiplies the total number of actions by a constant factor.
 
-In the MDP framework of Chapter 3, we defined the [state value function](../chapter03_mdp/value-bellman) $V^\pi(s)$ as "starting from state $s$, if we follow policy $\pi$, how many points do we expect to earn?" Now we widen the lens from a single state to the entire policy. Instead of asking "is it good from this state?", we ask "how good is this policy overall?"
+### LLM Generation: Probability Distributions Beat Greedy Decoding
 
-This is exactly what the [policy objective](../chapter03_mdp/policy-objective) $J(\theta)$ from Chapter 3 means. The answer is natural: across all possible starting points, under policy $\pi_\theta$, what [discounted return](../chapter03_mdp/mdp) do we expect to accumulate?
+Text generation in large language models faces a related issue. At each step, the model must select one token from tens of thousands. Suppose the vocabulary size is 50,000. $\arg\max$ itself is not difficult here -- comparing 50,000 numbers is computationally tractable. The problem is not computational feasibility, but generation quality.
 
-$$J(\theta) = \mathbb{E}_{\pi_\theta} \left[ \sum_{t=0}^{\infty} \gamma^t r_t \right]$$
+Suppose the model is generating the next token and has output the following probabilities:
 
-Let us interpret every symbol:
+| token | $P(\text{token} \mid \text{context})$ |
+| ----- | -------------------------------------- |
+| "is"  | $0.40$                                 |
+| "are" | $0.25$                                 |
+| "was" | $0.15$                                 |
+| "be"  | $0.10$                                 |
+| ...   | ...                                    |
 
-| Symbol                    | Role              | Intuition                                                           |
-| ------------------------- | ----------------- | ------------------------------------------------------------------- |
-| $\theta$                  | Policy parameters | Neural network weights: changing them changes the policy’s behavior |
-| $\pi_\theta$              | Policy            | Given a state, outputs a probability distribution over actions      |
-| $J(\theta)$               | Objective         | The policy’s "report card": how many points it earns on average     |
-| $\mathbb{E}_{\pi_\theta}$ | Expectation       | Run the policy many times, then average                             |
-| $\gamma^t r_t$            | Discounted reward | Reward at time $t$; farther-future rewards are worth less           |
+$\arg\max$ (greedy decoding) always selects the highest-probability "is". If the probability distributions at several subsequent positions are similar, greedy decoding will repeatedly output the same token. Sampling from the distribution, on the other hand, gives a 25% chance of selecting "are", a 15% chance of selecting "was" -- this randomness is precisely what fluent text generation requires. A policy network naturally outputs a probability distribution $\pi_\theta(a|s)$, and sampling is the generation process itself.
 
-$J(\theta)$ is our north star. The goal is simple: find parameters $\theta$ that maximize $J(\theta)$. The whole policy-gradient route is really answering one question: "how do we find such a $\theta$?"
+## Learning the Policy Directly
 
-## Gradient Ascent
+Since "score first, then select" does not work, take a different route: **skip $Q$ values and learn the policy $\pi_\theta(a|s)$ directly**. Instead of asking "how much is each action worth?", learn directly "what to do in which situation."
 
-How do we make $J(\theta)$ larger? The most classic tool in deep learning: move in the direction of the gradient.
+This is exactly the core idea of [Route 2: the policy objective $J(\theta)$](../chapter03_mdp/policy-objective) from Chapter 3 -- define a policy objective function $J(\theta)$, then directly optimize the parameters $\theta$ to maximize $J(\theta)$.
 
-$$\theta \leftarrow \theta + \alpha \, \nabla_\theta J(\theta)$$
+The difference between the two routes can be clarified with an analogy: value-based methods are like a food critic who scores every dish and then picks the highest-rated one; policy-based methods are like an experienced chef who, without scoring, simply knows what dish to make given the ingredients and the occasion.
 
-| Symbol                    | Role          | Plain meaning                                                           |
-| ------------------------- | ------------- | ----------------------------------------------------------------------- |
-| $\nabla_\theta J(\theta)$ | Gradient      | "Which way should we adjust parameters to improve the policy the most?" |
-| $\alpha$                  | Learning rate | "How big is each step?" Too large oscillates; too small crawls          |
-| $+$                       | Ascent        | Note the plus sign: we maximize, not minimize                           |
+### What the Policy Network Outputs
 
-But now the hard part appears: how do we compute $\nabla_\theta J(\theta)$?
+The policy network $\pi_\theta(a|s)$ does not output an action score, but a probability distribution. Consider CartPole: given the input state $s = [0.05, 0.1, -0.02, 0.3]$, the network performs a forward pass and finally outputs the probability of each action through a Softmax layer:
 
-The objective $J(\theta)$ contains an expectation $\mathbb{E}$. In theory, that means enumerating all possible trajectories and averaging, but in any realistic environment the number of possible trajectories is astronomical. This is like wanting the average height of an entire school: you cannot measure everyone, but you can estimate it by randomly sampling 100 students.
+$$
+\pi_\theta(\text{left} \mid s) = 0.3, \quad \pi_\theta(\text{right} \mid s) = 0.7.
+$$
 
-## The Policy Gradient Theorem
+| Symbol                          | Meaning                                                   |
+| ------------------------------- | --------------------------------------------------------- |
+| $\pi_\theta$                    | Policy network parameterized by $\theta$                  |
+| $\pi_\theta(a \mid s)$          | Probability of selecting action $a$ in state $s$          |
+| $s = [0.05, 0.1, -0.02, 0.3]$  | Current state (position, velocity, pole angle, angular velocity) |
+| $[0.3, 0.7]$                    | Action probability vector output by the network           |
 
-This is where the policy gradient theorem enters. In 1992, Ronald Williams proved in his REINFORCE paper that the seemingly intractable gradient $\nabla_\theta J(\theta)$ can be transformed into a form that can be estimated by sampling [^1]. Later, Sutton and collaborators further generalized and systematized this result [^2].
+Action selection is done by **sampling**, not comparison. From the distribution $[0.3, 0.7]$, draw a sample: generate a uniform random number $u \in [0,1)$; if $u < 0.3$, push left; otherwise, push right. For example, with $u = 0.65$, since $0.65 > 0.3$, the action is "push right."
 
-$$\nabla_\theta J(\theta) = \mathbb{E}_{\pi_\theta} \left[ \sum_t \nabla_\theta \log \pi_\theta(a_t | s_t) \cdot G_t \right]$$
+### Comparison with DQN
 
-Do not be intimidated by the length of the formula. Let us read it piece by piece:
+Given the same state, the two methods follow completely different paths:
 
-| Symbol                                      | Role                 | Plain meaning                                                                   |
-| ------------------------------------------- | -------------------- | ------------------------------------------------------------------------------- |
-| $\nabla_\theta$                             | Take gradient        | "How should we adjust parameters?"                                              |
-| $\log \pi_\theta(a_t \| s_t)$               | Log-probability      | Log-probability that the policy chooses action $a_t$ in state $s_t$             |
-| $\nabla_\theta \log \pi_\theta(a_t \| s_t)$ | Gradient of log-prob | "How does changing parameters change the probability of selecting this action?" |
-| $G_t$                                       | Return               | Total reward from time $t$ to the end: "how many points did we end up with?"    |
-| Outer $\mathbb{E}$                          | Expectation          | "Run many times and average" (approximate with samples)                         |
+**DQN path:** Network outputs $Q$ values $\to$ $\arg\max$ $\to$ deterministic action
 
-In one sentence: **if an action leads to a good outcome (large $G_t$), increase the probability of taking that action again; if it leads to a bad outcome (small $G_t$), decrease that probability.**
+$$
+[0.8,\; 1.2] \;\xrightarrow{\arg\max}\; \text{push right} \quad (\text{always this one}).
+$$
 
-This matches exactly what you observed in the bandit experiment: choosing B tends to win (large $G_t$), so its probability rises; choosing A may occasionally win, but not often enough, so its probability does not dominate. The policy gradient theorem is simply this intuition expressed in precise mathematics.
+**Policy network path:** Network outputs probabilities $\to$ sampling $\to$ stochastic action
 
-### The Log-Derivative Trick
+$$
+[0.3,\; 0.7] \;\xrightarrow{\text{sample}}\; \begin{cases} \text{push left} & \text{probability } 0.3 \\ \text{push right} & \text{probability } 0.7 \end{cases}
+$$
 
-You might wonder: why not write $\nabla_\theta \pi_\theta(a_t|s_t) \cdot G_t$ directly, and why introduce a $\log$?
+The most important distinction: once trained, DQN always outputs the same action for the same state (deterministic policy); a policy network may output different actions for the same state (stochastic policy). This stochasticity is not a flaw but a feature -- it naturally incorporates exploration without requiring a separate $\varepsilon$-greedy mechanism.
 
-This is a clever mathematical technique called the **log-derivative trick**. By the chain rule,
+For continuous action spaces, the policy network switches to outputting the parameters of a Gaussian distribution. For example, a robot arm that needs to output torques for 6 joints: the policy network outputs a mean vector $\mu_\theta(s) \in \mathbb{R}^6$ and a standard deviation $\sigma_\theta(s) \in \mathbb{R}^6$, then samples the action from $\mathcal{N}(\mu_\theta(s),\; \text{diag}(\sigma_\theta^2(s)))$. No discretization, no $\arg\max$, one forward pass.
 
-$$\nabla_\theta \log \pi = \frac{\nabla_\theta \pi}{\pi}$$
+## Differences Between the Two Routes
 
-That division by $\pi$ cancels the implicit $\pi$ factor that appears in the expectation, making the final estimator clean and computable. From an engineering perspective, $\pi \in (0,1)$; gradients of raw probabilities can be numerically tiny and harm training stability. The $\log$ maps $(0,1)$ to $(-\infty, 0)$, often yielding gradients that behave more nicely in practice.
+|                  | Value-Based (DQN)                               | Policy-Based (Policy Gradient)                |
+| ---------------- | ------------------------------------------------ | --------------------------------------------- |
+| What it learns   | $Q(s,a)$: how much each action is worth          | $\pi_\theta(a\|s)$: what probability to assign each action |
+| Action selection | $\arg\max_a Q(s,a)$ (pick the highest score)    | Sample from $\pi_\theta(\cdot\|s)$            |
+| Policy form      | Deterministic (always pick the highest score)    | Stochastic (outputs a probability distribution) |
+| Action space     | Discrete only                                    | Discrete + continuous                         |
+| Exploration      | External ($\varepsilon$-greedy)                  | Built-in (probability distribution naturally includes exploration) |
+| Data reuse       | Off-policy (replay buffer can reuse old data)    | On-policy (must use fresh data from the current policy) |
+| Variance         | Low (TD targets are relatively stable)           | High (Monte Carlo returns fluctuate widely)   |
+| Representative algorithm | DQN (Chapter 4)                        | REINFORCE (this chapter) $\to$ PPO (Chapter 7) |
 
-<details>
-<summary>Math derivation: from the objective to the policy gradient theorem</summary>
+Key differences explained row by row.
 
-To take the gradient of the objective, we differentiate with respect to the trajectory distribution:
+**Action space** -- This is the primary criterion for choosing between the routes. DQN's $\arg\max$ is simply not computable in continuous spaces. Policy gradients output a probability distribution directly -- Softmax for discrete actions, Gaussian for continuous actions -- just swap the output layer.
 
-$$\nabla_\theta J(\theta) = \nabla_\theta \sum_{\tau} P(\tau; \theta) \sum_t r_t(\tau)$$
+**Exploration** -- DQN's policy is deterministic (always pick $\arg\max$), so exploration must be injected via $\varepsilon$-greedy (review: [the three components of DQN](../chapter04_dqn/dqn-components)). The $\varepsilon$ schedule must be tuned by hand: too large wastes experience, too small under-explores. Policy gradients naturally output a probability distribution, so exploration is built in -- if the network believes an action has a 30% chance of being worth trying, it will try it 30% of the time.
 
-Here $\tau = (s_0, a_0, s_1, a_1, \ldots)$ is a trajectory, and $P(\tau; \theta)$ is the probability that the policy induces $\tau$. The gradient only acts on $P(\tau; \theta)$ (rewards do not depend on $\theta$):
+**Data reuse** -- This is the most practical engineering difference between the two routes. DQN is off-policy: the replay buffer stores old data that can be reused repeatedly for training. Policy gradients are on-policy: the $\mathbb{E}_{\pi_\theta}$ in the gradient estimator requires data generated by the current policy $\pi_\theta$. Once the policy updates, old data is invalidated. Data efficiency is inherently lower than DQN, and this is the biggest engineering weakness of policy gradients.
 
-$$\nabla_\theta J(\theta) = \sum_{\tau} \nabla_\theta P(\tau; \theta) \sum_t r_t(\tau)$$
+### Numerical Comparison on the Same Scenario
 
-The key step is the identity $\nabla_\theta P = P \cdot \nabla_\theta \log P$:
+Walk through both routes on a concrete scenario. Setup: 3 states $\{s_1, s_2, s_3\}$, 2 actions $\{a_1, a_2\}$, discount factor $\gamma = 0.9$.
 
-$$\nabla_\theta J(\theta) = \sum_{\tau} P(\tau; \theta) \left( \nabla_\theta \log P(\tau; \theta) \right) \sum_t r_t(\tau)$$
+**DQN route: learn $Q$ values, select with $\arg\max$**
 
-The trajectory probability factorizes as
-$P(\tau; \theta) = \prod_t \pi_\theta(a_t|s_t) \cdot P(s_{t+1}|s_t, a_t)$.
-Taking the log and differentiating w.r.t. $\theta$, the environment dynamics term $P(s'|s,a)$ drops out because it does not depend on $\theta$, leaving only the policy terms:
+Suppose after training, DQN has learned the following $Q$ table:
 
-$$\nabla_\theta \log P(\tau; \theta) = \sum_t \nabla_\theta \log \pi_\theta(a_t|s_t)$$
+| State    | $Q(s, a_1)$ | $Q(s, a_2)$ |
+| -------- | ----------- | ----------- |
+| $s_1$    | $1.5$       | $2.3$       |
+| $s_2$    | $0.8$       | $-0.4$      |
+| $s_3$    | $3.1$       | $2.9$       |
 
-Substituting back into the expectation yields the policy gradient theorem. The most beautiful point here is that the environment dynamics are eliminated during differentiation. That is why policy gradients **do not need a model of the environment**; this is a fundamental reason they are much more flexible than dynamic programming methods.
+Apply $\arg\max$ at each state:
 
-</details>
+$$
+\pi(s_1) = \arg\max\{1.5,\; 2.3\} = a_2,
+$$
 
-## The REINFORCE Algorithm
+$$
+\pi(s_2) = \arg\max\{0.8,\; -0.4\} = a_1,
+$$
 
-The policy gradient theorem gives the form of the gradient. **REINFORCE** is its most straightforward implementation: use [Monte Carlo sampling](../chapter03_mdp/dp-mc-td) to estimate the expectation (review: the essence of MC is "run a full episode, then look back"). The algorithm is surprisingly simple:
+$$
+\pi(s_3) = \arg\max\{3.1,\; 2.9\} = a_1.
+$$
 
-1. Run a complete episode with the current policy $\pi_\theta$, recording states, actions, and rewards at each step.
-2. For each time step, compute the return from that step to the end: $G_t = \sum_{k=t}^{T} \gamma^{k-t} r_k$.
-3. Estimate the gradient with samples: $\nabla_\theta J \approx \sum_t \nabla_\theta \log \pi_\theta(a_t|s_t) \cdot G_t$.
-4. Update parameters along the gradient direction: $\theta \leftarrow \theta + \alpha \nabla_\theta J$.
+The result is a deterministic policy table: every state always selects the same action. If exploration is needed, $\varepsilon$-greedy must be added on top. For example, with $\varepsilon = 0.1$, there is a 10% probability of choosing randomly:
 
-In PyTorch, this becomes one line:
+| State  | Probability of $a_1$                   | Probability of $a_2$                   |
+| ------ | --------------------------------------- | --------------------------------------- |
+| $s_1$  | $0.1 \times 0.5 = 0.05$                | $0.9 + 0.1 \times 0.5 = 0.95$          |
+| $s_2$  | $0.9 + 0.1 \times 0.5 = 0.95$          | $0.1 \times 0.5 = 0.05$                |
+| $s_3$  | $0.9 + 0.1 \times 0.5 = 0.95$          | $0.1 \times 0.5 = 0.05$                |
 
-```python
-loss = -log_prob * G_t  # The minus sign is because PyTorch does gradient descent (minimization), but we need gradient ascent (maximization)
-```
+$\varepsilon$-greedy exploration is uniform: the 10% random exploration is split equally between $a_1$ and $a_2$. Even though $Q(s_3, a_2) = 2.9$ is very close to $Q(s_3, a_1) = 3.1$ (the two actions are nearly equally good), the exploration probability allocation is identical to $s_1$ where the gap is large.
 
-Looking back at the previous bandit code, `loss = -log_prob * reward` is exactly the single-step special case of REINFORCE ($G_t = r_t$ because the bandit has only one step and no future).
+**Policy gradient route: learn $\pi_\theta(a|s)$, select by sampling**
 
-```python
-# REINFORCE core (multi-step version)
-for t in range(len(rewards)):
-    G_t = sum(gamma ** k * rewards[t + k] for k in range(len(rewards) - t))
-    loss += -log_probs[t] * G_t
+Suppose the policy network has learned the following probability distributions:
 
-optimizer.zero_grad()
-loss.backward()
-optimizer.step()
-```
+| State  | $\pi(a_1 \mid s)$ | $\pi(a_2 \mid s)$ |
+| ------ | ------------------ | ------------------ |
+| $s_1$  | $0.2$              | $0.8$              |
+| $s_2$  | $0.9$              | $0.1$              |
+| $s_3$  | $0.55$             | $0.45$             |
 
-## The Variance Problem of REINFORCE
+At $s_3$, the policy network considers the two actions nearly equally good ($0.55$ vs $0.45$), so the exploration ratio is naturally high; at $s_1$ and $s_2$, one action clearly dominates, so exploration is naturally low. No manual $\varepsilon$ tuning is needed -- the probability distribution itself encodes "how much to explore."
 
-REINFORCE looks concise and elegant, but it has a problem severe enough to make it almost "unusable" in practice: **its variance is too large**.
+Placing the key numbers from both routes side by side:
 
-Why? Because $G_t$ is the accumulated return from time $t$ to the end of the episode, which includes all the randomness along the rest of the trajectory. For the same action, different sampled rollouts can produce drastically different $G_t$:
+| Dimension              | DQN at $s_3$                                          | Policy gradient at $s_3$                               |
+| ---------------------- | ------------------------------------------------------ | ------------------------------------------------------- |
+| Network output         | $Q(s_3, a_1) = 3.1$, $Q(s_3, a_2) = 2.9$              | $\pi(a_1 \mid s_3) = 0.55$, $\pi(a_2 \mid s_3) = 0.45$ |
+| Action selection       | $\arg\max\{3.1, 2.9\} = a_1$                          | Sampling: 55% chance $a_1$, 45% chance $a_2$           |
+| Exploration            | External $\varepsilon$-greedy (uniform random)         | Built-in (adaptive probability distribution)            |
+| Continuous action space | Not applicable (requires discretized $Q$-value grid)  | Applicable (directly outputs Gaussian parameters)       |
 
-| Case      | What actually happened               | $G_t$ |
-| --------- | ------------------------------------ | ----- |
-| Good luck | Later steps happened to score highly | Large |
-| Bad luck  | Later steps happened to score poorly | Small |
+The core difference is in the last row: DQN's $\arg\max$ confines the action space to a finite discrete set; policy gradients skip the step of "scoring every action" and directly output a probability distribution over "how to choose actions," removing the barrier of continuous action spaces entirely.
 
-The problem is that the policy gradient uses $G_t$ to judge whether "this action was good". If $G_t$ fluctuates widely, then **the same good action might be punished due to bad luck, and the same bad action might be rewarded due to good luck**. This is like judging a student's true ability from a single exam score: a poor result does not necessarily mean poor understanding; it could just be an off day.
+## The Two Routes Are Not Opposed
 
-In the previous bandit experiment you already saw the concrete manifestation of this: the training curve was not a smooth upward line, but full of jagged oscillations. If you increase the learning rate (for example, from 0.01 to 0.1), the policy will swing violently between A and B and never stabilize. That is the direct consequence of high variance.
+Each route has its strengths and weaknesses, but they are not mutually exclusive. Chapter 6's Actor-Critic will merge the two: a policy network for decision-making, a value network for variance reduction. Before that, however, we need to establish the mathematical foundations of the policy-based route.
 
-## Discrete vs. Continuous Action Spaces
-
-Our experiments in this chapter use a discrete action space (choose A or choose B), but the policy gradient theorem applies equally to continuous action spaces. This is not a minor theoretical detail; it determines how you design the "output head" of the policy network:
-
-|                           | Discrete action space                     | Continuous action space                           |
-| ------------------------- | ----------------------------------------- | ------------------------------------------------- |
-| Example                   | CartPole left/right, LLM token choice     | Robot joint angles, steering angle                |
-| Output head               | Softmax (probability of each action)      | Gaussian parameters (mean $\mu$ and std $\sigma$) |
-| Sampling                  | Sample according to Softmax probabilities | Sample from $\mathcal{N}(\mu, \sigma^2)$          |
-| How to compute $\log \pi$ | `log_softmax`                             | Log-density formula of a Gaussian                 |
-
-This difference matters: the same PPO algorithm can be used for LLM alignment (discrete token selection) or for robot control (continuous torque output) by swapping only the output head. This is one of the major reasons policy-gradient methods are far more flexible than value-based methods. DQN’s $\arg\max$ is simply not computable in continuous spaces (you cannot compare infinitely many continuous candidates), whereas policy gradients differentiate the probability density directly and are naturally compatible with continuous actions.
-
-<details>
-<summary>Question: What is the essential difference between REINFORCE and Q-Learning updates?</summary>
-
-Q-Learning updates a value function $Q(s,a)$ ("how many points is this action worth?"), and the policy is obtained implicitly via $\arg\max Q$: first you build a score table, then you pick the best action from it. REINFORCE updates the policy parameters $\theta$ directly, skipping the $Q$ step entirely: it does not ask "what is the score?", but learns "what should I do?"
-
-This difference has two important consequences. Q-Learning is off-policy (old data can be reused many times), while REINFORCE is on-policy (it must use fresh data generated by the current policy). Q-Learning can only handle discrete actions (it needs to enumerate actions to take a max), while REINFORCE can handle continuous actions (it differentiates the probability density directly).
-
-</details>
-
-<details>
-<summary>Question: Why does REINFORCE need to finish an entire episode before it can update?</summary>
-
-Because $G_t$ requires all rewards from time $t$ until the episode ends. If you do not reach the terminal step, you do not know the full value of $G_t$. This is like not being able to fairly judge a movie until you watch the final scene; stopping halfway prevents a complete evaluation.
-
-This also hints at an optimization direction. If we can replace $G_t$ with a more stable estimate, then we could update without waiting for the episode to finish. Where could such a "more stable estimate" come from? From the [value function](../chapter03_mdp/value-bellman) in Chapter 3. Using $V(s)$ as a baseline turns an "absolute return" into a "relative return". This is exactly what the next baseline experiment and the next chapter on Actor-Critic will do.
-
-</details>
-
-REINFORCE can work, but its "high variance" makes it nearly impractical. Fortunately, the policy gradient theorem has a remarkable property: you can subtract a "baseline" that does not depend on the action from the gradient estimator. This does not change the expected gradient direction, but can dramatically reduce variance. This observation directly leads to the Actor-Critic architecture. In the next chapter, [Actor-Critic](../chapter06_actor_critic/actor-critic), we will see how that works.
-
----
-
-[^1]: Williams, R. J. (1992). Simple statistical gradient-following algorithms for connectionist reinforcement learning. _Machine Learning_, 8(3-4), 229-256. [DOI](https://doi.org/10.1007/BF00992696)
-
-[^2]: Sutton, R. S., et al. (1999). Policy gradient methods for reinforcement learning with function approximation. _Advances in Neural Information Processing Systems_, 12.
+The next section starts from the policy objective function, derives the policy gradient theorem, and introduces the REINFORCE algorithm: [REINFORCE Algorithm](./reinforce).
